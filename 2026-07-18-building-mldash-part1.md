@@ -120,7 +120,7 @@ the bumps along the way.
 > the time of the first draft. Since then, mldash has gained container images,
 > deployment resources and a working deployment in a Kubernetes environment.
 
-![mldash — from POC to deployed MVP](/assets/images/2026-08-02-mldash-poc-to-mvp.png)
+![mldash — from POC to deployed MVP](/assets/images/2026-08-02-mldash-poc-to-mvp.jpg)
 
 *From POC to deployed MVP — containerized, published, and deployed through a
 read-only GitOps workflow. Conceptual illustration; all interfaces, users,
