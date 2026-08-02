@@ -207,4 +207,4 @@ open http://localhost:8080
 
 ## License
 
-MIT
+No license has been selected yet. This repository is currently shared for learning, portfolio, and reference purposes.
