@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content="30" />
+    <title>mldash</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: system-ui, sans-serif;
+        background: #0f1117;
+        color: #e0e0e0;
+        padding: 24px;
+      }
+      h1 {
+        color: #7cb8ff;
+        font-size: 22px;
+        margin-bottom: 20px;
+      }
+      h2 {
+        font-size: 11px;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border-bottom: 1px solid #2a3040;
+        padding-bottom: 6px;
+        margin: 24px 0 12px;
+      }
+      .legend-strong {
+        font-size: 16px;
+        font-weight: bold;
+      }
+
+      .cards {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+      .card {
+        background: #1a1f2e;
+        border: 1px solid #2a3040;
+        border-radius: 8px;
+        padding: 16px 20px;
+      }
+      .card-type {
+        font-size: 13px;
+        font-weight: bold;
+        color: #7cb8ff;
+        margin-bottom: 12px;
+      }
+      .card-stats {
+        display: flex;
+        gap: 20px;
+      }
+      .stat .val {
+        font-size: 28px;
+        font-weight: bold;
+      }
+      .stat .lbl {
+        font-size: 11px;
+        color: #888;
+        margin-top: 2px;
+      }
+      .val-total {
+        color: #e0e0e0;
+      }
+      .val-used {
+        color: #ff6b6b;
+      }
+      .val-free {
+        color: #6bcb77;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th {
+        text-align: left;
+        padding: 7px 12px;
+        font-size: 11px;
+        color: #666;
+        text-transform: uppercase;
+        border-bottom: 1px solid #2a3040;
+      }
+      td {
+        padding: 7px 12px;
+        border-bottom: 1px solid #1a1f2e;
+      }
+      tr:hover td {
+        background: #1a1f2e;
+      }
+
+      .running {
+        color: #6bcb77;
+      }
+      .stopped {
+        color: #555;
+      }
+      .pending {
+        color: #ffd93d;
+      }
+      .warning {
+        color: #ffd93d;
+      }
+      .none {
+        color: #555;
+      }
+
+      .legend {
+        color: #666;
+        margin-top: 10px;
+        margin-bottom: 4px;
+      }
+      .footer {
+        font-size: 11px;
+        color: #444;
+        margin-top: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>⚡ mldash</h1>
+
+    <h2>GPU Inventory</h2>
+    <div class="cards">
+      {{range .GPUs}}
+      <div class="card">
+        <div class="card-type">{{.GPUType}}</div>
+        <div class="card-stats">
+          <div class="stat">
+            <div class="val val-total">{{.Total}}</div>
+            <div class="lbl">total</div>
+          </div>
+          <div class="stat">
+            <div class="val val-used">{{.Used}}</div>
+            <div class="lbl">used</div>
+          </div>
+          <div class="stat">
+            <div class="val val-free">{{.Available}}</div>
+            <div class="lbl">free</div>
+          </div>
+        </div>
+      </div>
+      {{end}}
+    </div>
+
+    <h2>Notebooks</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>User</th>
+          <th>Notebook</th>
+          <th>GPU</th>
+          <th>GPU Type</th>
+          <th>CPU</th>
+          <th>Memory</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Notebooks}}
+        <tr>
+          <td class="{{statusClass .Status}}">
+            {{statusIcon .Status}} {{.Status}}
+          </td>
+          <td>{{.User}}</td>
+          <td>{{.Name}}</td>
+          <td>
+            {{if gt .GPUCount 0}}{{.GPUCount}}{{else}}<span class="none">-</span
+            >{{end}}
+          </td>
+          <td>
+            {{if gt .GPUCount 0}} {{if .GPUType}}{{.GPUType}}{{else}}<span
+              class="none"
+              >-</span
+            >{{end}} {{else if .GPUType}}
+            <span class="warning" title="nodeAffinity set but no GPU requested"
+              >⚠️ {{.GPUType}}</span
+            >
+            {{else}}
+            <span class="none">-</span>
+            {{end}}
+          </td>
+          <td>{{.CPURequest}}</td>
+          <td>{{.MemRequest}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+
+    <div class="legend legend-strong">
+      <span class="warning">⚠️</span> GPU type set via nodeAffinity but no GPU
+      requested — possible misconfiguration in notebook spawner.
+    </div>
+
+    {{if .Quotas}}
+    <h2>Namespace Quotas (CPU / Memory)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Namespace</th>
+          <th>CPU Total</th>
+          <th>CPU Used</th>
+          <th>CPU Available</th>
+          <th>Mem Total</th>
+          <th>Mem Used</th>
+          <th>Mem Available</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Quotas}}
+        <tr>
+          <td>{{.Namespace}}</td>
+          <td>{{.CPUTotal}}</td>
+          <td>{{.CPUUsed}}</td>
+          <td>{{.CPUAvailable}}</td>
+          <td>{{.MemTotal}}</td>
+          <td>{{.MemUsed}}</td>
+          <td>{{.MemAvailable}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    <div class="legend legend-strong">
+      NA = ResourceQuota no configurada para este namespace. Stopped Notebooks
+      are not counted as "used" CPU/memory.
+    </div>
+    {{end}} {{if .Workloads}}
+    <h2>GPU Workloads</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Name</th>
+          <th>Namespace</th>
+          <th>Image</th>
+          <th>GPU</th>
+          <th>GPU Type</th>
+          <th>CPU</th>
+          <th>Memory</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Workloads}}
+        <tr>
+          <td class="{{statusClass .Status}}">
+            {{statusIcon .Status}} {{.Status}}
+          </td>
+          <td>{{.Name}}</td>
+          <td>{{.Namespace}}</td>
+          <td>{{.Image}}</td>
+          <td>{{.GPUCount}}</td>
+          <td>
+            {{if .GPUType}}{{.GPUType}}{{else}}<span class="none">-</span
+            >{{end}}
+          </td>
+          <td>{{.CPURequest}}</td>
+          <td>{{.MemRequest}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{end}}
+
+    <div class="footer">Updated: {{.UpdatedAt}} · auto-refresh 30s</div>
+  </body>
+</html>

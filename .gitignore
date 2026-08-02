@@ -1,0 +1,13 @@
+# binaries
+mldash
+/bin/
+
+# go
+*.test
+*.out
+
+# env
+.env
+
+# OS
+.DS_Store

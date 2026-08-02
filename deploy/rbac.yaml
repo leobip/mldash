@@ -1,0 +1,58 @@
+# Generic read-only RBAC example for mldash.
+#
+# The application only reads Kubernetes resources. A ClusterRoleBinding is used
+# because nodes and Kubeflow Notebooks are observed cluster-wide. Native RBAC
+# cannot restrict a ClusterRoleBinding to namespaces selected by name prefix.
+#
+# If you change `mldash-system`, update the Namespace, ServiceAccount and
+# ClusterRoleBinding subject together.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mldash-system
+  labels:
+    app.kubernetes.io/name: mldash
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mldash
+  namespace: mldash-system
+  labels:
+    app.kubernetes.io/name: mldash
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mldash-read-only
+  labels:
+    app.kubernetes.io/name: mldash
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "namespaces"]
+    verbs: ["list"]
+  - apiGroups: ["kubeflow.org"]
+    resources: ["notebooks"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods", "resourcequotas"]
+    verbs: ["list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mldash-read-only
+  labels:
+    app.kubernetes.io/name: mldash
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mldash-read-only
+subjects:
+  - kind: ServiceAccount
+    name: mldash
+    namespace: mldash-system

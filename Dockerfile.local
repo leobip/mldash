@@ -1,0 +1,42 @@
+# Dockerfile.local — LOCAL TESTING ONLY, not for production.
+# Adds kubectl + kubelogin (oidc-login plugin) so the exec-based auth in
+# ~/.kube/config works inside the container. Production image (Dockerfile)
+# stays distroless/minimal since in-cluster auth uses the ServiceAccount token.
+
+# --- build stage ---
+FROM golang:1.26-alpine AS builder
+
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /out/mldash ./cmd/server
+
+# --- runtime stage (debug: alpine + kubectl + kubelogin) ---
+FROM alpine:3.20
+
+ARG KUBECTL_VERSION=v1.31.0
+ARG KUBELOGIN_VERSION=v1.36.0
+
+RUN apk add --no-cache curl unzip ca-certificates && \
+    ARCH=$(uname -m); \
+    case "$ARCH" in \
+      x86_64) KARCH=amd64 ;; \
+      aarch64) KARCH=arm64 ;; \
+      *) echo "unsupported arch: $ARCH" && exit 1 ;; \
+    esac; \
+    curl -Lo /usr/local/bin/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${KARCH}/kubectl" && \
+    chmod +x /usr/local/bin/kubectl && \
+    curl -Lo /tmp/kubelogin.zip "https://github.com/int128/kubelogin/releases/download/${KUBELOGIN_VERSION}/kubelogin_linux_${KARCH}.zip" && \
+    unzip -o /tmp/kubelogin.zip -d /usr/local/bin && \
+    mv /usr/local/bin/kubelogin /usr/local/bin/kubectl-oidc_login && \
+    chmod +x /usr/local/bin/kubectl-oidc_login && \
+    rm /tmp/kubelogin.zip && \
+    apk del curl unzip
+
+COPY --from=builder /out/mldash /mldash
+
+EXPOSE 8080
+ENTRYPOINT ["/mldash"]
