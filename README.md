@@ -54,7 +54,7 @@ An operational portal for AI/ML teams that answers day-to-day questions like:
    - `metadata.annotations["notebooks.kubeflow.org/creator"]` → user
    - `spec.template.spec.affinity.nodeAffinity...matchExpressions` → GPU type (accelerator label)
 
-4. **Known limitation:** GPU resource key is hardcoded to `nvidia.com/gpu` in three files (`nodes.go`, `notebooks.go`, `gpuworkloads.go`). AMD/Intel/other vendors are not detected today — see Roadmap.
+4. **Multi-vendor GPU support:** the extended-resource key(s) used for GPU capacity/usage and the label used to resolve the GPU model/type are configurable via `GPU_RESOURCE_KEYS` (default `nvidia.com/gpu`) and `GPU_TYPE_LABEL` (default `accelerator`) — see `.env.example`. Defaults match single-vendor NVIDIA clusters exactly (zero behavior change); add more comma-separated keys (e.g. `nvidia.com/gpu,amd.com/gpu`) for multi-vendor clusters.
 
 ### Example: tracing `GPUCount` end-to-end
 
@@ -197,8 +197,6 @@ open http://localhost:8080
 
 ## Roadmap
 
-- **[Priority] Multi-vendor GPU support** — today only `nvidia.com/gpu` is recognized (nodes, notebooks, workloads). Extend to AMD (`amd.com/gpu`), Intel, and other vendor resource keys.
-- Configurable accelerator label discovery
 - HTMX partial updates (replace full-page meta refresh)
 - Generic Deployment and Service examples
 - Versioned container releases pinned by digest
