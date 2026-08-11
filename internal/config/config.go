@@ -14,6 +14,8 @@ type Config struct {
 	KubeContext      string   // kubeconfig context to use (empty = current context)
 	KubeflowNSPrefix string   // prefix for Kubeflow user namespaces
 	GPUNamespaces    []string // extra namespaces with GPU workloads (non-notebook)
+	GPUResourceKeys  []string // resource keys for GPU resources (e.g. "nvidia.com/gpu")
+	GPUTypeLabel     string   // label key for GPU type (e.g. "nvidia.com/gpu.product")
 }
 
 // Load reads configuration from environment variables.
@@ -27,6 +29,8 @@ func Load() Config {
 		KubeContext:      os.Getenv("KUBE_CONTEXT"),
 		KubeflowNSPrefix: getEnvOrDefault("KUBEFLOW_NS_PREFIX", "kubeflow-"),
 		GPUNamespaces:    parseCSV(os.Getenv("GPU_NAMESPACES")),
+		GPUResourceKeys:  parseCSV(getEnvOrDefault("GPU_RESOURCE_KEYS", "nvidia.com/gpu")),
+		GPUTypeLabel:     getEnvOrDefault("GPU_TYPE_LABEL", "accelerator"),
 	}
 }
 

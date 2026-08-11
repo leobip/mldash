@@ -57,13 +57,13 @@ func main() {
 	defer cancel()
 
 	// Node refresher: periodic List (no Watch needed)
-	watchers.StartNodeRefresher(ctx, clientset, store)
+	watchers.StartNodeRefresher(ctx, clientset, store, cfg.GPUResourceKeys, cfg.GPUTypeLabel)
 	watchers.StartPodNodeRefresher(ctx, clientset, store, cfg.KubeflowNSPrefix)
-	watchers.StartGPUWorkloadRefresher(ctx, clientset, store, cfg.GPUNamespaces)
+	watchers.StartGPUWorkloadRefresher(ctx, clientset, store, cfg.GPUNamespaces, cfg.GPUResourceKeys, cfg.GPUTypeLabel)
 
 	// Notebook watcher: dynamic informer on kubeflow.org/v1/notebooks
 	dynFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynClient, 30*time.Second)
-	watchers.StartNotebookWatcher(dynFactory, store)
+	watchers.StartNotebookWatcher(dynFactory, store, cfg.GPUResourceKeys, cfg.GPUTypeLabel)
 	dynFactory.Start(ctx.Done())
 
 	synced := dynFactory.WaitForCacheSync(ctx.Done())
@@ -96,7 +96,7 @@ func main() {
 			},
 		}).ParseFS(web.Templates, "templates/index.html"),
 	)
-	handler := api.NewHandler(store, tmpl)
+	handler := api.NewHandler(store, tmpl, cfg.KubeflowNSPrefix)
 	router := api.NewRouter(handler)
 
 	srv := &http.Server{
@@ -105,7 +105,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("server starting on %s", cfg.Addr)
+		log.Printf("mldash dashboard ready: http://localhost%s", cfg.Addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("ListenAndServe: %v", err)
 		}
