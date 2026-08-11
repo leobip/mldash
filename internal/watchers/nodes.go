@@ -15,8 +15,8 @@ import (
 
 // StartNodeRefresher does an initial node list and refreshes every 30s.
 // Uses List only (no Watch) — compatible with get/list permissions on nodes.
-func StartNodeRefresher(ctx context.Context, client kubernetes.Interface, store *mlcache.Store) {
-	refreshNodes(ctx, client, store)
+func StartNodeRefresher(ctx context.Context, client kubernetes.Interface, store *mlcache.Store, gpuResourceKeys []string, gpuTypeLabel string) {
+	refreshNodes(ctx, client, store, gpuResourceKeys, gpuTypeLabel)
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
@@ -25,13 +25,13 @@ func StartNodeRefresher(ctx context.Context, client kubernetes.Interface, store 
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				refreshNodes(ctx, client, store)
+				refreshNodes(ctx, client, store, gpuResourceKeys, gpuTypeLabel)
 			}
 		}
 	}()
 }
 
-func refreshNodes(ctx context.Context, client kubernetes.Interface, store *mlcache.Store) {
+func refreshNodes(ctx context.Context, client kubernetes.Interface, store *mlcache.Store, gpuResourceKeys []string, gpuTypeLabel string) {
 	list, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		log.Printf("node refresh error: %v", err)
@@ -39,7 +39,7 @@ func refreshNodes(ctx context.Context, client kubernetes.Interface, store *mlcac
 	}
 	seen := make(map[string]bool)
 	for i := range list.Items {
-		info := buildNodeInfo(&list.Items[i])
+		info := buildNodeInfo(&list.Items[i], gpuResourceKeys, gpuTypeLabel)
 		store.SetNode(info)
 		seen[list.Items[i].Name] = true
 	}
@@ -52,9 +52,8 @@ func refreshNodes(ctx context.Context, client kubernetes.Interface, store *mlcac
 	log.Printf("nodes refreshed: %d total", len(list.Items))
 }
 
-func buildNodeInfo(node *corev1.Node) models.NodeInfo {
-	gpuQ := node.Status.Allocatable["nvidia.com/gpu"]
-	gpuTotal, _ := gpuQ.AsInt64()
+func buildNodeInfo(node *corev1.Node, gpuResourceKeys []string, gpuTypeLabel string) models.NodeInfo {
+	gpuTotal := SumGPU(node.Status.Allocatable, gpuResourceKeys)
 
 	ready := false
 	for _, c := range node.Status.Conditions {
@@ -66,7 +65,7 @@ func buildNodeInfo(node *corev1.Node) models.NodeInfo {
 
 	return models.NodeInfo{
 		Name:        node.Name,
-		Accelerator: node.Labels["accelerator"],
+		Accelerator: node.Labels[gpuTypeLabel],
 		GPUTotal:    gpuTotal,
 		Ready:       ready,
 	}

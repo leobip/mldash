@@ -15,11 +15,11 @@ import (
 
 // StartGPUWorkloadRefresher lists pods with GPU requests in the given namespaces.
 // If namespaces is empty, the refresher does nothing.
-func StartGPUWorkloadRefresher(ctx context.Context, client kubernetes.Interface, store *mlcache.Store, namespaces []string) {
+func StartGPUWorkloadRefresher(ctx context.Context, client kubernetes.Interface, store *mlcache.Store, namespaces []string, gpuResourceKeys []string, gpuTypeLabel string) {
 	if len(namespaces) == 0 {
 		return
 	}
-	refreshGPUWorkloads(ctx, client, store, namespaces)
+	refreshGPUWorkloads(ctx, client, store, namespaces, gpuResourceKeys, gpuTypeLabel)
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
@@ -28,13 +28,13 @@ func StartGPUWorkloadRefresher(ctx context.Context, client kubernetes.Interface,
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				refreshGPUWorkloads(ctx, client, store, namespaces)
+				refreshGPUWorkloads(ctx, client, store, namespaces, gpuResourceKeys, gpuTypeLabel)
 			}
 		}
 	}()
 }
 
-func refreshGPUWorkloads(ctx context.Context, client kubernetes.Interface, store *mlcache.Store, namespaces []string) {
+func refreshGPUWorkloads(ctx context.Context, client kubernetes.Interface, store *mlcache.Store, namespaces []string, gpuResourceKeys []string, gpuTypeLabel string) {
 	for _, ns := range namespaces {
 		pods, err := client.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{})
 		if err != nil {
@@ -44,7 +44,7 @@ func refreshGPUWorkloads(ctx context.Context, client kubernetes.Interface, store
 		seen := map[string]bool{}
 		for i := range pods.Items {
 			pod := &pods.Items[i]
-			w, ok := buildGPUWorkload(pod)
+			w, ok := buildGPUWorkload(pod, gpuResourceKeys, gpuTypeLabel)
 			if !ok {
 				continue
 			}
@@ -60,13 +60,12 @@ func refreshGPUWorkloads(ctx context.Context, client kubernetes.Interface, store
 	}
 }
 
-func buildGPUWorkload(pod *corev1.Pod) (models.GPUWorkload, bool) {
+func buildGPUWorkload(pod *corev1.Pod, gpuResourceKeys []string, gpuTypeLabel string) (models.GPUWorkload, bool) {
 	var gpuCount int64
 	var cpuReq, memReq, image string
 
 	for _, c := range pod.Spec.Containers {
-		gpuQ := c.Resources.Requests["nvidia.com/gpu"]
-		n, _ := gpuQ.AsInt64()
+		n := SumGPU(c.Resources.Requests, gpuResourceKeys)
 		gpuCount += n
 		if n > 0 {
 			image = c.Image
@@ -84,7 +83,7 @@ func buildGPUWorkload(pod *corev1.Pod) (models.GPUWorkload, bool) {
 	}
 
 	// GPU type: from nodeSelector if Pending, from nodeName lookup later
-	gpuType := pod.Spec.NodeSelector["accelerator"]
+	gpuType := pod.Spec.NodeSelector[gpuTypeLabel]
 	status := string(pod.Status.Phase)
 
 	return models.GPUWorkload{

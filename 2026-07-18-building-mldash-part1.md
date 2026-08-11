@@ -1,7 +1,7 @@
 ---
 layout: single
 classes: wide
-title: "Building in Public: mldash — Part 1"
+title: "MLDash: building an observability dashboard for Kubeflow notebooks"
 categories:
   - golang
   - kubernetes
@@ -13,12 +13,12 @@ tags:
   - mlops
   - observability
   - side-project
-date: '2026-07-18 09:00:00'
+date: "2026-07-18 09:00:00"
 header:
   teaser: /assets/images/2026-07-18-mldash-teaser.png
 ---
 
-For the past few months I've been working on designing and deploying a full
+For the past months I've been working on designing and deploying a full
 MLOps platform: LLM models in production (code and chat), shared GPUs,
 Kubeflow, ClearML + agents, all orchestrated by ArgoCD.
 
@@ -30,6 +30,10 @@ But this story starts in a meeting. A question, out of nowhere:
 > across Kubeflow notebooks?
 
 That question stuck with me.
+
+![mldash — The Question and the Idea](/assets/images/2026-07-18-mldash.jpg)
+
+*Illustrative image generated with fictional users, workloads, nodes, and GPU values.*
 
 So I started digging on my own to see if something like this already
 existed. I looked at Kubeflow. I looked at Kubernetes. I looked at
@@ -48,7 +52,9 @@ An observability server, not an operator — it only reads cluster state and
 exposes it. It touches nothing. Minimal permissions, deliberately designed
 to be non-invasive in a cluster shared across multiple teams.
 
-![mldash — how it reads the cluster](/assets/images/2026-07-18-mldash-architecture.png)
+![mldash — how it reads the cluster](/assets/images/2026-07-18-mldash-architecture-eng.png)
+
+*Generic architecture illustration; it does not represent a specific environment.*
 
 ## First design pass
 
@@ -72,14 +78,29 @@ example: listing nodes and reading how many GPUs the cluster has
 allocatable, cluster-wide:
 
 ```go
-list, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-...
-gpuQ := node.Status.Allocatable["nvidia.com/gpu"]
-gpuTotal, _ := gpuQ.AsInt64()
+// Connect to the Kubernetes cluster from inside the pod
+config, err := rest.InClusterConfig()
+if err != nil {
+    log.Fatal("not running in cluster")
+}
+clientset, err := kubernetes.NewForConfig(config)
+
+// List all nodes and sum up their GPU capacity
+list, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+for _, node := range list.Items {
+    gpuQ := node.Status.Allocatable["nvidia.com/gpu"]
+    gpuCount, _ := gpuQ.AsInt64()
+    // Store in cache...
+}
 ```
 
-Nothing fancy — just the same information `kubectl get nodes -o yaml` would
-show you, but structured and cached so the dashboard can use it directly.
+Nothing fancy — just the same information `kubectl` would show you:
+
+![kubectl get nodes with GPU](/assets/images/2026-07-18-mldash-kubectl-terminal.png)
+
+*Mock terminal output with fictional node names and GPU values.*
+
+But in Go, structured and cached so the dashboard can use it directly.
 
 It's still a work in progress — an MVP, not a product. Still missing: a
 Dockerfile, deployment manifests, code cleanup, and (honestly) getting past
@@ -98,6 +119,12 @@ the bumps along the way.
 > **Update — August 2, 2026:** the paragraph above describes the project at
 > the time of the first draft. Since then, mldash has gained container images,
 > deployment resources and a working deployment in a Kubernetes environment.
+
+![mldash — from POC to deployed MVP](/assets/images/2026-08-02-mldash-poc-to-mvp.jpg)
+
+*From POC to deployed MVP — containerized, published, and deployed through a
+read-only GitOps workflow. Conceptual illustration; all interfaces, users,
+workloads, nodes, and values are fictional.*
 
 The first step after the POC was making the binary portable. I added a
 multi-stage Dockerfile: Go compiles a static binary in the build stage, and the

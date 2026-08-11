@@ -2,10 +2,12 @@ package models
 
 // GPUInfo represents GPU inventory summary per accelerator type.
 type GPUInfo struct {
-	GPUType   string `json:"gpu_type"`
-	Total     int64  `json:"total"`
-	Used      int64  `json:"used"`
-	Available int64  `json:"available"`
+	GPUType         string `json:"gpu_type"`
+	Total           int64  `json:"total"`
+	Used            int64  `json:"used"`
+	UsedByNotebooks int64  `json:"used_by_notebooks"`
+	UsedByWorkloads int64  `json:"used_by_workloads"`
+	Available       int64  `json:"available"`
 }
 
 // NodeInfo represents a node with its GPU capacity.

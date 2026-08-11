@@ -5,6 +5,8 @@ import (
 	"html/template"
 	"net/http"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	mlcache "github.com/leobip/mldash/internal/cache"
@@ -14,22 +16,26 @@ import (
 
 // Handler holds the dependencies for the http handlers, including the cache store.
 type Handler struct {
-	store *mlcache.Store
-	tmpl  *template.Template
+	store            *mlcache.Store
+	tmpl             *template.Template
+	kubeflowNSPrefix string
 }
 
 // NewHandler creates a new Handler instance with the provided cache store.
-func NewHandler(store *mlcache.Store, tmpl *template.Template) *Handler {
-	return &Handler{store: store, tmpl: tmpl}
+// kubeflowNSPrefix is used to identify Kubeflow user namespaces when
+// aggregating the Namespace Quotas total (GPU workload namespaces excluded).
+func NewHandler(store *mlcache.Store, tmpl *template.Template, kubeflowNSPrefix string) *Handler {
+	return &Handler{store: store, tmpl: tmpl, kubeflowNSPrefix: kubeflowNSPrefix}
 }
 
 // PageData holds all data for the dashboard page, including GPUs, nodes, notebooks, and workloads.
 type PageData struct {
-	GPUs      []models.GPUInfo
-	Notebooks []models.NotebookInfo
-	Workloads []models.GPUWorkload
-	Quotas    []models.NamespaceQuota
-	UpdatedAt string
+	GPUs        []models.GPUInfo
+	Notebooks   []models.NotebookInfo
+	Workloads   []models.GPUWorkload
+	Quotas      []models.NamespaceQuota
+	QuotasTotal models.NamespaceQuota
+	UpdatedAt   string
 }
 
 // HealthCheck responds with 200
@@ -57,14 +63,15 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 		return notebooks[i].GPUCount < notebooks[j].GPUCount
 	})
 
-	quotas := h.computeNamespaceQuotas()
+	quotas, quotasTotal := h.computeNamespaceQuotas()
 
 	data := PageData{
-		GPUs:      h.computeGPUs(),
-		Notebooks: notebooks,
-		Workloads: h.store.GetWorkloads(),
-		Quotas:    quotas,
-		UpdatedAt: time.Now().Format(time.RFC1123),
+		GPUs:        h.computeGPUs(),
+		Notebooks:   notebooks,
+		Workloads:   h.store.GetWorkloads(),
+		Quotas:      quotas,
+		QuotasTotal: quotasTotal,
+		UpdatedAt:   time.Now().Format(time.RFC1123),
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := h.tmpl.Execute(w, data); err != nil {
@@ -94,7 +101,8 @@ func (h *Handler) GetGPUWorkloads(w http.ResponseWriter, r *http.Request) {
 
 // GetNamespaceQuotas returns ResourceQuota status per namespace as JSON.
 func (h *Handler) GetNamespaceQuotas(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, h.computeNamespaceQuotas())
+	quotas, _ := h.computeNamespaceQuotas()
+	writeJSON(w, quotas)
 }
 
 // computeGPUs builds the GPU summary from nodes + notebooks + workloads.
@@ -112,7 +120,7 @@ func (h *Handler) computeGPUs() []models.GPUInfo {
 		}
 	}
 
-	usedByType := map[string]int64{}
+	usedByNotebooksType := map[string]int64{}
 	for _, nb := range notebooks {
 		if nb.Status != "Running" || nb.GPUCount == 0 {
 			continue
@@ -122,23 +130,28 @@ func (h *Handler) computeGPUs() []models.GPUInfo {
 			gpuType = h.store.ResolveGPUType(nb.Namespace, nb.Name)
 		}
 		if gpuType != "" {
-			usedByType[gpuType] += nb.GPUCount
+			usedByNotebooksType[gpuType] += nb.GPUCount
 		}
 	}
+	usedByWorkloadsType := map[string]int64{}
 	for _, w := range workloads {
 		if w.Status == "Running" && w.GPUCount > 0 && w.GPUType != "" {
-			usedByType[w.GPUType] += w.GPUCount
+			usedByWorkloadsType[w.GPUType] += w.GPUCount
 		}
 	}
 
 	gpus := make([]models.GPUInfo, 0, len(totalByType))
 	for gpuType, total := range totalByType {
-		used := usedByType[gpuType]
+		usedNB := usedByNotebooksType[gpuType]
+		usedWL := usedByWorkloadsType[gpuType]
+		used := usedNB + usedWL
 		gpus = append(gpus, models.GPUInfo{
-			GPUType:   gpuType,
-			Total:     total,
-			Used:      used,
-			Available: total - used,
+			GPUType:         gpuType,
+			Total:           total,
+			Used:            used,
+			UsedByNotebooks: usedNB,
+			UsedByWorkloads: usedWL,
+			Available:       total - used,
 		})
 	}
 	sort.Slice(gpus, func(i, j int) bool { return gpus[i].GPUType < gpus[j].GPUType })
@@ -148,8 +161,10 @@ func (h *Handler) computeGPUs() []models.GPUInfo {
 // computeNamespaceQuotas combines the raw ResourceQuota hard limits (from the
 // store, watcher-populated) with live notebook usage (Running only) to build
 // the final per-namespace CPU/Mem view. When no ResourceQuota is configured,
-// Total and Available are reported as "NA".
-func (h *Handler) computeNamespaceQuotas() []models.NamespaceQuota {
+// Total and Available are reported as "NA". It also returns an aggregate
+// TOTAL row across Kubeflow namespaces only (matching kubeflowNSPrefix),
+// excluding GPU workload namespaces (e.g. rme-llm) that are not for notebooks.
+func (h *Handler) computeNamespaceQuotas() ([]models.NamespaceQuota, models.NamespaceQuota) {
 	rawByNS := map[string]models.NamespaceQuota{}
 	for _, q := range h.store.GetQuotas() {
 		rawByNS[q.Namespace] = q
@@ -192,6 +207,9 @@ func (h *Handler) computeNamespaceQuotas() []models.NamespaceQuota {
 	}
 
 	result := make([]models.NamespaceQuota, 0, len(namespaces))
+	var totalCPUUsed, totalMemUsed, totalCPUHard, totalMemHard resource.Quantity
+	totalAny, totalConfigured := false, true
+
 	for _, ns := range namespaces {
 		u := usedByNS[ns]
 		if u == nil {
@@ -201,9 +219,11 @@ func (h *Handler) computeNamespaceQuotas() []models.NamespaceQuota {
 		raw := rawByNS[ns]
 		q := models.NamespaceQuota{
 			Namespace: ns,
-			CPUUsed:   u.cpu.String(),
+			CPUUsed:   formatCPUCores(u.cpu),
 			MemUsed:   u.mem.String(),
 		}
+
+		isKubeflowNS := strings.HasPrefix(ns, h.kubeflowNSPrefix)
 
 		if raw.Configured {
 			totalCPU, _ := resource.ParseQuantity(raw.CPUTotal)
@@ -214,10 +234,15 @@ func (h *Handler) computeNamespaceQuotas() []models.NamespaceQuota {
 			availMem.Sub(u.mem)
 
 			q.Configured = true
-			q.CPUTotal = totalCPU.String()
+			q.CPUTotal = formatCPUCores(totalCPU)
 			q.MemTotal = totalMem.String()
-			q.CPUAvailable = availCPU.String()
+			q.CPUAvailable = formatCPUCores(availCPU)
 			q.MemAvailable = availMem.String()
+
+			if isKubeflowNS {
+				totalCPUHard.Add(totalCPU)
+				totalMemHard.Add(totalMem)
+			}
 		} else {
 			q.Configured = false
 			q.Error = raw.Error
@@ -225,13 +250,48 @@ func (h *Handler) computeNamespaceQuotas() []models.NamespaceQuota {
 			q.MemTotal = "NA"
 			q.CPUAvailable = "NA"
 			q.MemAvailable = "NA"
+
+			if isKubeflowNS {
+				totalConfigured = false
+			}
+		}
+
+		if isKubeflowNS {
+			totalAny = true
+			totalCPUUsed.Add(u.cpu)
+			totalMemUsed.Add(u.mem)
 		}
 
 		result = append(result, q)
 	}
 
 	sort.Slice(result, func(i, j int) bool { return result[i].Namespace < result[j].Namespace })
-	return result
+
+	total := models.NamespaceQuota{
+		Namespace: "TOTAL (Kubeflow)",
+		CPUUsed:   formatCPUCores(totalCPUUsed),
+		MemUsed:   totalMemUsed.String(),
+	}
+	if totalAny && totalConfigured {
+		availCPU := totalCPUHard.DeepCopy()
+		availCPU.Sub(totalCPUUsed)
+		availMem := totalMemHard.DeepCopy()
+		availMem.Sub(totalMemUsed)
+
+		total.Configured = true
+		total.CPUTotal = formatCPUCores(totalCPUHard)
+		total.MemTotal = totalMemHard.String()
+		total.CPUAvailable = formatCPUCores(availCPU)
+		total.MemAvailable = availMem.String()
+	} else {
+		total.Configured = false
+		total.CPUTotal = "NA"
+		total.MemTotal = "NA"
+		total.CPUAvailable = "NA"
+		total.MemAvailable = "NA"
+	}
+
+	return result, total
 }
 
 func writeJSON(w http.ResponseWriter, v interface{}) {
@@ -242,4 +302,12 @@ func writeJSON(w http.ResponseWriter, v interface{}) {
 		return
 	}
 	w.Write(data)
+}
+
+func formatCPUCores(q resource.Quantity) string {
+	milli := q.MilliValue()
+	if milli%1000 == 0 {
+		return strconv.FormatInt(milli/1000, 10)
+	}
+	return strconv.FormatFloat(float64(milli)/1000.0, 'f', -1, 64)
 }

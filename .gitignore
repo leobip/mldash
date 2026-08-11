@@ -11,3 +11,4 @@ mldash
 
 # OS
 .DS_Store
+__debug_bin*

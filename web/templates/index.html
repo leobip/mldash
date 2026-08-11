@@ -34,6 +34,10 @@
         font-size: 16px;
         font-weight: bold;
       }
+      .total-row td {
+        background: #1a1f2e;
+        border-top: 2px solid #2a3040;
+      }
 
       .cards {
         display: flex;
@@ -56,6 +60,11 @@
       .card-stats {
         display: flex;
         gap: 20px;
+      }
+      .card-breakdown {
+        font-size: 12px;
+        color: #888;
+        margin-top: 8px;
       }
       .stat .val {
         font-size: 28px;
@@ -144,8 +153,12 @@
           </div>
           <div class="stat">
             <div class="val val-free">{{.Available}}</div>
-            <div class="lbl">free</div>
+            <div class="lbl">free for notebooks</div>
           </div>
+        </div>
+        <div class="card-breakdown">
+          Notebooks: {{.UsedByNotebooks}} · Workloads (LLM/serving):
+          {{.UsedByWorkloads}}
         </div>
       </div>
       {{end}}
@@ -226,11 +239,27 @@
           <td>{{.MemAvailable}}</td>
         </tr>
         {{end}}
+        <tr class="total-row">
+          <td><strong>TOTAL (Kubeflow)</strong></td>
+          <td>{{.QuotasTotal.CPUTotal}}</td>
+          <td>{{.QuotasTotal.CPUUsed}}</td>
+          <td>{{.QuotasTotal.CPUAvailable}}</td>
+          <td>{{.QuotasTotal.MemTotal}}</td>
+          <td>{{.QuotasTotal.MemUsed}}</td>
+          <td>{{.QuotasTotal.MemAvailable}}</td>
+        </tr>
       </tbody>
     </table>
     <div class="legend legend-strong">
-      NA = ResourceQuota no configurada para este namespace. Stopped Notebooks
-      are not counted as "used" CPU/memory.
+      NA = ResourceQuota not configured for this namespace — there is no
+      per-namespace hard cap; the only real limit is total node capacity across
+      the cluster.
+      <br />
+      Stopped Notebooks are not counted as "used" CPU/memory.
+      <br />
+      TOTAL (Kubeflow) aggregates only namespaces matching KUBEFLOW_NS_PREFIX
+      (excludes GPU_NAMESPACES workloads like rme-llm); it shows NA if any
+      included namespace has no ResourceQuota configured.
     </div>
     {{end}} {{if .Workloads}}
     <h2>GPU Workloads</h2>
@@ -267,6 +296,11 @@
         {{end}}
       </tbody>
     </table>
+    <div class="legend legend-strong">
+      Pods requesting GPU outside of Kubeflow Notebooks (e.g. LLM inference
+      serving). Discovered by listing pods in the namespaces configured via
+      GPU_NAMESPACES — independent of the Notebook CRD.
+    </div>
     {{end}}
 
     <div class="footer">Updated: {{.UpdatedAt}} · auto-refresh 30s</div>

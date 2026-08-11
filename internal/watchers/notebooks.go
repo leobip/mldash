@@ -20,7 +20,7 @@ var notebookGVR = schema.GroupVersionResource{
 }
 
 // StartNotebookWatcher watches Kubeflow Notebook CRDs cluster-wide.
-func StartNotebookWatcher(factory dynamicinformer.DynamicSharedInformerFactory, store *mlcache.Store) {
+func StartNotebookWatcher(factory dynamicinformer.DynamicSharedInformerFactory, store *mlcache.Store, gpuResourceKeys []string, gpuTypeLabel string) {
 	informer := factory.ForResource(notebookGVR).Informer()
 
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -29,14 +29,14 @@ func StartNotebookWatcher(factory dynamicinformer.DynamicSharedInformerFactory, 
 			if !ok {
 				return
 			}
-			store.SetNotebook(buildNotebookInfo(u))
+			store.SetNotebook(buildNotebookInfo(u, gpuResourceKeys, gpuTypeLabel))
 		},
 		UpdateFunc: func(_, newObj interface{}) {
 			u, ok := newObj.(*unstructured.Unstructured)
 			if !ok {
 				return
 			}
-			store.SetNotebook(buildNotebookInfo(u))
+			store.SetNotebook(buildNotebookInfo(u, gpuResourceKeys, gpuTypeLabel))
 		},
 		DeleteFunc: func(obj interface{}) {
 			u, ok := obj.(*unstructured.Unstructured)
@@ -49,7 +49,7 @@ func StartNotebookWatcher(factory dynamicinformer.DynamicSharedInformerFactory, 
 	})
 }
 
-func buildNotebookInfo(u *unstructured.Unstructured) models.NotebookInfo {
+func buildNotebookInfo(u *unstructured.Unstructured, gpuResourceKeys []string, gpuTypeLabel string) models.NotebookInfo {
 	user := u.GetAnnotations()["notebooks.kubeflow.org/creator"]
 
 	readyReplicas, _, _ := unstructured.NestedInt64(u.Object, "status", "readyReplicas")
@@ -64,9 +64,12 @@ func buildNotebookInfo(u *unstructured.Unstructured) models.NotebookInfo {
 	containers, _, _ := unstructured.NestedSlice(u.Object, "spec", "template", "spec", "containers")
 	if len(containers) > 0 {
 		if c, ok := containers[0].(map[string]interface{}); ok {
-			gpuStr, _, _ := unstructured.NestedString(c, "resources", "limits", "nvidia.com/gpu")
-			if gpuStr != "" {
-				gpuCount, _ = strconv.ParseInt(gpuStr, 10, 64)
+			for _, key := range gpuResourceKeys {
+				gpuStr, _, _ := unstructured.NestedString(c, "resources", "limits", key)
+				if gpuStr != "" {
+					n, _ := strconv.ParseInt(gpuStr, 10, 64)
+					gpuCount += n
+				}
 			}
 			cpuReq, _, _ = unstructured.NestedString(c, "resources", "requests", "cpu")
 			memReq, _, _ = unstructured.NestedString(c, "resources", "requests", "memory")
@@ -78,7 +81,7 @@ func buildNotebookInfo(u *unstructured.Unstructured) models.NotebookInfo {
 		Namespace:  u.GetNamespace(),
 		User:       user,
 		GPUCount:   gpuCount,
-		GPUType:    extractAccelerator(u),
+		GPUType:    extractAccelerator(u, gpuTypeLabel),
 		CPURequest: cpuReq,
 		MemRequest: memReq,
 		Status:     status,
@@ -86,7 +89,7 @@ func buildNotebookInfo(u *unstructured.Unstructured) models.NotebookInfo {
 }
 
 // extractAccelerator reads the accelerator value from the notebook's nodeAffinity.
-func extractAccelerator(u *unstructured.Unstructured) string {
+func extractAccelerator(u *unstructured.Unstructured, gpuTypeLabel string) string {
 	terms, _, _ := unstructured.NestedSlice(u.Object,
 		"spec", "template", "spec", "affinity", "nodeAffinity",
 		"requiredDuringSchedulingIgnoredDuringExecution", "nodeSelectorTerms")
@@ -101,7 +104,7 @@ func extractAccelerator(u *unstructured.Unstructured) string {
 			if !ok {
 				continue
 			}
-			if key, _ := expr["key"].(string); key == "accelerator" {
+			if key, _ := expr["key"].(string); key == gpuTypeLabel {
 				if vals, _ := expr["values"].([]interface{}); len(vals) > 0 {
 					if s, ok := vals[0].(string); ok {
 						return s
