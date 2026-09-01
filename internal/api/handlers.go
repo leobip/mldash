@@ -30,12 +30,14 @@ func NewHandler(store *mlcache.Store, tmpl *template.Template, kubeflowNSPrefix 
 
 // PageData holds all data for the dashboard page, including GPUs, nodes, notebooks, and workloads.
 type PageData struct {
-	GPUs        []models.GPUInfo
-	Notebooks   []models.NotebookInfo
-	Workloads   []models.GPUWorkload
-	Quotas      []models.NamespaceQuota
-	QuotasTotal models.NamespaceQuota
-	UpdatedAt   string
+	GPUs           []models.GPUInfo
+	Notebooks      []models.NotebookInfo
+	Workloads      []models.GPUWorkload
+	HasWorkloads   bool
+	WorkloadStatus string
+	Quotas         []models.NamespaceQuota
+	QuotasTotal    models.NamespaceQuota
+	UpdatedAt      string
 }
 
 // HealthCheck responds with 200
@@ -65,13 +67,30 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 
 	quotas, quotasTotal := h.computeNamespaceQuotas()
 
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "Running"
+	}
+	allWorkloads := h.store.GetWorkloads()
+	workloads := allWorkloads
+	if status != "All" {
+		workloads = make([]models.GPUWorkload, 0, len(allWorkloads))
+		for _, w := range allWorkloads {
+			if w.Status == status {
+				workloads = append(workloads, w)
+			}
+		}
+	}
+
 	data := PageData{
-		GPUs:        h.computeGPUs(),
-		Notebooks:   notebooks,
-		Workloads:   h.store.GetWorkloads(),
-		Quotas:      quotas,
-		QuotasTotal: quotasTotal,
-		UpdatedAt:   time.Now().Format(time.RFC1123),
+		GPUs:           h.computeGPUs(),
+		Notebooks:      notebooks,
+		Workloads:      workloads,
+		HasWorkloads:   len(allWorkloads) > 0,
+		WorkloadStatus: status,
+		Quotas:         quotas,
+		QuotasTotal:    quotasTotal,
+		UpdatedAt:      time.Now().Format(time.RFC1123),
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := h.tmpl.Execute(w, data); err != nil {

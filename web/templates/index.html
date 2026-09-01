@@ -157,7 +157,7 @@
           </div>
         </div>
         <div class="card-breakdown">
-          Notebooks: {{.UsedByNotebooks}} · Workloads (LLM/serving):
+          Notebooks: {{.UsedByNotebooks}} · Workloads (non-notebook):
           {{.UsedByWorkloads}}
         </div>
       </div>
@@ -261,8 +261,53 @@
       (excludes GPU_NAMESPACES workloads like rme-llm); it shows NA if any
       included namespace has no ResourceQuota configured.
     </div>
-    {{end}} {{if .Workloads}}
+    {{end}} {{if .HasWorkloads}}
     <h2>GPU Workloads</h2>
+    <form method="get" class="filter-form">
+      <label for="status">Status:</label>
+      <select name="status" id="status">
+        <option value="All" {{if eq .WorkloadStatus "All"}}selected{{end}}>
+          All
+        </option>
+        <option
+          value="Running"
+          {{if
+          eq
+          .WorkloadStatus
+          "Running"}}selected{{end}}
+        >
+          Running
+        </option>
+        <option
+          value="Pending"
+          {{if
+          eq
+          .WorkloadStatus
+          "Pending"}}selected{{end}}
+        >
+          Pending
+        </option>
+        <option
+          value="Failed"
+          {{if
+          eq
+          .WorkloadStatus
+          "Failed"}}selected{{end}}
+        >
+          Failed
+        </option>
+        <option
+          value="Succeeded"
+          {{if
+          eq
+          .WorkloadStatus
+          "Succeeded"}}selected{{end}}
+        >
+          Succeeded
+        </option>
+      </select>
+      <button type="submit">Filter</button>
+    </form>
     <table>
       <thead>
         <tr>
@@ -293,13 +338,22 @@
           <td>{{.CPURequest}}</td>
           <td>{{.MemRequest}}</td>
         </tr>
+        {{else}}
+        <tr>
+          <td colspan="8" class="none">
+            No workloads match this filter ({{.WorkloadStatus}}).
+          </td>
+        </tr>
         {{end}}
       </tbody>
     </table>
     <div class="legend legend-strong">
       Pods requesting GPU outside of Kubeflow Notebooks (e.g. LLM inference
-      serving). Discovered by listing pods in the namespaces configured via
-      GPU_NAMESPACES — independent of the Notebook CRD.
+      serving). Discovered by listing pods cluster-wide and skipping any
+      namespace matching KUBEFLOW_NS_PREFIX — independent of the Notebook CRD.
+      <br />
+      Filtered to "Running" by default to hide stale/terminal pods; switch to
+      "All" or "Failed" to investigate.
     </div>
     {{end}}
 

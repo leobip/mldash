@@ -59,7 +59,7 @@ func main() {
 	// Node refresher: periodic List (no Watch needed)
 	watchers.StartNodeRefresher(ctx, clientset, store, cfg.GPUResourceKeys, cfg.GPUTypeLabel)
 	watchers.StartPodNodeRefresher(ctx, clientset, store, cfg.KubeflowNSPrefix)
-	watchers.StartGPUWorkloadRefresher(ctx, clientset, store, cfg.GPUNamespaces, cfg.GPUResourceKeys, cfg.GPUTypeLabel)
+	watchers.StartGPUWorkloadRefresher(ctx, clientset, store, cfg.KubeflowNSPrefix, cfg.GPUResourceKeys, cfg.GPUTypeLabel)
 
 	// Notebook watcher: dynamic informer on kubeflow.org/v1/notebooks
 	dynFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynClient, 30*time.Second)
