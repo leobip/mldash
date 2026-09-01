@@ -30,12 +30,19 @@ func NewHandler(store *mlcache.Store, tmpl *template.Template, kubeflowNSPrefix 
 
 // PageData holds all data for the dashboard page, including GPUs, nodes, notebooks, and workloads.
 type PageData struct {
-	GPUs        []models.GPUInfo
-	Notebooks   []models.NotebookInfo
-	Workloads   []models.GPUWorkload
-	Quotas      []models.NamespaceQuota
-	QuotasTotal models.NamespaceQuota
-	UpdatedAt   string
+	GPUs             []models.GPUInfo
+	Notebooks        []models.NotebookInfo
+	NotebookUsers    []string
+	NotebookGPUTypes []string
+	NotebookStatus   string
+	NotebookUser     string
+	NotebookGPUType  string
+	Workloads        []models.GPUWorkload
+	HasWorkloads     bool
+	WorkloadStatus   string
+	Quotas           []models.NamespaceQuota
+	QuotasTotal      models.NamespaceQuota
+	UpdatedAt        string
 }
 
 // HealthCheck responds with 200
@@ -55,23 +62,84 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Sort notebooks by Status and name for consistent display
-	sort.Slice(notebooks, func(i, j int) bool {
-		if notebooks[i].Status != notebooks[j].Status {
-			return notebooks[i].Status < notebooks[j].Status
+	// filter option lists come from the full (unfiltered) notebook set
+	userSet := map[string]bool{}
+	gpuTypeSet := map[string]bool{}
+	for _, nb := range notebooks {
+		if nb.User != "" {
+			userSet[nb.User] = true
 		}
-		return notebooks[i].GPUCount < notebooks[j].GPUCount
+		if nb.GPUType != "" {
+			gpuTypeSet[nb.GPUType] = true
+		}
+	}
+
+	nbStatus := r.URL.Query().Get("nb_status")
+	if nbStatus == "" {
+		nbStatus = "Running"
+	}
+	nbUser := r.URL.Query().Get("nb_user")
+	if nbUser == "" {
+		nbUser = "All"
+	}
+	nbGPUType := r.URL.Query().Get("nb_gputype")
+	if nbGPUType == "" {
+		nbGPUType = "All"
+	}
+
+	filteredNotebooks := make([]models.NotebookInfo, 0, len(notebooks))
+	for _, nb := range notebooks {
+		if nbStatus != "All" && nb.Status != nbStatus {
+			continue
+		}
+		if nbUser != "All" && nb.User != nbUser {
+			continue
+		}
+		if nbGPUType != "All" && nb.GPUType != nbGPUType {
+			continue
+		}
+		filteredNotebooks = append(filteredNotebooks, nb)
+	}
+
+	// Sort notebooks by Status and name for consistent display
+	sort.Slice(filteredNotebooks, func(i, j int) bool {
+		if filteredNotebooks[i].Status != filteredNotebooks[j].Status {
+			return filteredNotebooks[i].Status < filteredNotebooks[j].Status
+		}
+		return filteredNotebooks[i].GPUCount < filteredNotebooks[j].GPUCount
 	})
 
 	quotas, quotasTotal := h.computeNamespaceQuotas()
 
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "Running"
+	}
+	allWorkloads := h.store.GetWorkloads()
+	workloads := allWorkloads
+	if status != "All" {
+		workloads = make([]models.GPUWorkload, 0, len(allWorkloads))
+		for _, w := range allWorkloads {
+			if w.Status == status {
+				workloads = append(workloads, w)
+			}
+		}
+	}
+
 	data := PageData{
-		GPUs:        h.computeGPUs(),
-		Notebooks:   notebooks,
-		Workloads:   h.store.GetWorkloads(),
-		Quotas:      quotas,
-		QuotasTotal: quotasTotal,
-		UpdatedAt:   time.Now().Format(time.RFC1123),
+		GPUs:             h.computeGPUs(),
+		Notebooks:        filteredNotebooks,
+		NotebookUsers:    sortedKeys(userSet),
+		NotebookGPUTypes: sortedKeys(gpuTypeSet),
+		NotebookStatus:   nbStatus,
+		NotebookUser:     nbUser,
+		NotebookGPUType:  nbGPUType,
+		Workloads:        workloads,
+		HasWorkloads:     len(allWorkloads) > 0,
+		WorkloadStatus:   status,
+		Quotas:           quotas,
+		QuotasTotal:      quotasTotal,
+		UpdatedAt:        time.Now().Format(time.RFC1123),
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := h.tmpl.Execute(w, data); err != nil {
@@ -302,6 +370,17 @@ func writeJSON(w http.ResponseWriter, v interface{}) {
 		return
 	}
 	w.Write(data)
+}
+
+// sortedKeys returns the keys of a set map sorted alphabetically, used to
+// build stable dropdown option lists.
+func sortedKeys(set map[string]bool) []string {
+	keys := make([]string, 0, len(set))
+	for k := range set {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func formatCPUCores(q resource.Quantity) string {

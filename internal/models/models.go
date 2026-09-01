@@ -20,14 +20,15 @@ type NodeInfo struct {
 
 // NotebookInfo represents a Kubeflow Notebook and its resource requests.
 type NotebookInfo struct {
-	Name       string `json:"name"`
-	Namespace  string `json:"namespace"`
-	User       string `json:"user"`
-	GPUCount   int64  `json:"gpu_count"`
-	GPUType    string `json:"gpu_type"`
-	CPURequest string `json:"cpu_request"`
-	MemRequest string `json:"mem_request"`
-	Status     string `json:"status"` // Running / Stopped
+	Name         string `json:"name"`
+	Namespace    string `json:"namespace"`
+	User         string `json:"user"`
+	GPUCount     int64  `json:"gpu_count"`
+	GPUType      string `json:"gpu_type"`
+	CPURequest   string `json:"cpu_request"`
+	MemRequest   string `json:"mem_request"`
+	Status       string `json:"status"` // Running / Pending / Stopped
+	StatusReason string `json:"status_reason,omitempty"`
 }
 
 // NamespaceQuota represents CPU/memory ResourceQuota status for a namespace.

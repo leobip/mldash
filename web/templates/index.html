@@ -157,7 +157,7 @@
           </div>
         </div>
         <div class="card-breakdown">
-          Notebooks: {{.UsedByNotebooks}} · Workloads (LLM/serving):
+          Notebooks: {{.UsedByNotebooks}} · Workloads (non-notebook):
           {{.UsedByWorkloads}}
         </div>
       </div>
@@ -165,6 +165,68 @@
     </div>
 
     <h2>Notebooks</h2>
+    <form method="get" class="filter-form">
+      <label for="nb_status">Status:</label>
+      <select name="nb_status" id="nb_status">
+        <option value="All" {{if eq .NotebookStatus "All"}}selected{{end}}>
+          All
+        </option>
+        <option
+          value="Running"
+          {{if
+          eq
+          .NotebookStatus
+          "Running"}}selected{{end}}
+        >
+          Running
+        </option>
+        <option
+          value="Pending"
+          {{if
+          eq
+          .NotebookStatus
+          "Pending"}}selected{{end}}
+        >
+          Pending
+        </option>
+        <option
+          value="Stopped"
+          {{if
+          eq
+          .NotebookStatus
+          "Stopped"}}selected{{end}}
+        >
+          Stopped
+        </option>
+      </select>
+
+      <label for="nb_user">User:</label>
+      <select name="nb_user" id="nb_user">
+        <option value="All" {{if eq .NotebookUser "All"}}selected{{end}}>
+          All
+        </option>
+        {{range .NotebookUsers}}
+        <option value="{{.}}" {{if eq $.NotebookUser .}}selected{{end}}>
+          {{.}}
+        </option>
+        {{end}}
+      </select>
+
+      <label for="nb_gputype">GPU Type:</label>
+      <select name="nb_gputype" id="nb_gputype">
+        <option value="All" {{if eq .NotebookGPUType "All"}}selected{{end}}>
+          All
+        </option>
+        {{range .NotebookGPUTypes}}
+        <option value="{{.}}" {{if eq $.NotebookGPUType .}}selected{{end}}>
+          {{.}}
+        </option>
+        {{end}}
+      </select>
+
+      <button type="submit">Filter</button>
+      <input type="hidden" name="status" value="{{.WorkloadStatus}}" />
+    </form>
     <table>
       <thead>
         <tr>
@@ -181,7 +243,11 @@
         {{range .Notebooks}}
         <tr>
           <td class="{{statusClass .Status}}">
-            {{statusIcon .Status}} {{.Status}}
+            {{if and (eq .Status "Pending") .StatusReason}}
+            <span title="{{.StatusReason}}"
+              >{{statusIcon .Status}} {{.Status}}</span
+            >
+            {{else}} {{statusIcon .Status}} {{.Status}} {{end}}
           </td>
           <td>{{.User}}</td>
           <td>{{.Name}}</td>
@@ -203,6 +269,12 @@
           </td>
           <td>{{.CPURequest}}</td>
           <td>{{.MemRequest}}</td>
+        </tr>
+        {{else}}
+        <tr>
+          <td colspan="7" class="none">
+            No notebooks match this filter.
+          </td>
         </tr>
         {{end}}
       </tbody>
@@ -261,8 +333,56 @@
       (excludes GPU_NAMESPACES workloads like rme-llm); it shows NA if any
       included namespace has no ResourceQuota configured.
     </div>
-    {{end}} {{if .Workloads}}
+    {{end}} {{if .HasWorkloads}}
     <h2>GPU Workloads</h2>
+    <form method="get" class="filter-form">
+      <label for="status">Status:</label>
+      <select name="status" id="status">
+        <option value="All" {{if eq .WorkloadStatus "All"}}selected{{end}}>
+          All
+        </option>
+        <option
+          value="Running"
+          {{if
+          eq
+          .WorkloadStatus
+          "Running"}}selected{{end}}
+        >
+          Running
+        </option>
+        <option
+          value="Pending"
+          {{if
+          eq
+          .WorkloadStatus
+          "Pending"}}selected{{end}}
+        >
+          Pending
+        </option>
+        <option
+          value="Failed"
+          {{if
+          eq
+          .WorkloadStatus
+          "Failed"}}selected{{end}}
+        >
+          Failed
+        </option>
+        <option
+          value="Succeeded"
+          {{if
+          eq
+          .WorkloadStatus
+          "Succeeded"}}selected{{end}}
+        >
+          Succeeded
+        </option>
+      </select>
+      <button type="submit">Filter</button>
+      <input type="hidden" name="nb_status" value="{{.NotebookStatus}}" />
+      <input type="hidden" name="nb_user" value="{{.NotebookUser}}" />
+      <input type="hidden" name="nb_gputype" value="{{.NotebookGPUType}}" />
+    </form>
     <table>
       <thead>
         <tr>
@@ -293,13 +413,22 @@
           <td>{{.CPURequest}}</td>
           <td>{{.MemRequest}}</td>
         </tr>
+        {{else}}
+        <tr>
+          <td colspan="8" class="none">
+            No workloads match this filter ({{.WorkloadStatus}}).
+          </td>
+        </tr>
         {{end}}
       </tbody>
     </table>
     <div class="legend legend-strong">
       Pods requesting GPU outside of Kubeflow Notebooks (e.g. LLM inference
-      serving). Discovered by listing pods in the namespaces configured via
-      GPU_NAMESPACES — independent of the Notebook CRD.
+      serving). Discovered by listing pods cluster-wide and skipping any
+      namespace matching KUBEFLOW_NS_PREFIX — independent of the Notebook CRD.
+      <br />
+      Filtered to "Running" by default to hide stale/terminal pods; switch to
+      "All" or "Failed" to investigate.
     </div>
     {{end}}
 

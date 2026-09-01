@@ -3,6 +3,7 @@ package watchers
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -13,13 +14,11 @@ import (
 	"github.com/leobip/mldash/internal/models"
 )
 
-// StartGPUWorkloadRefresher lists pods with GPU requests in the given namespaces.
-// If namespaces is empty, the refresher does nothing.
-func StartGPUWorkloadRefresher(ctx context.Context, client kubernetes.Interface, store *mlcache.Store, namespaces []string, gpuResourceKeys []string, gpuTypeLabel string) {
-	if len(namespaces) == 0 {
-		return
-	}
-	refreshGPUWorkloads(ctx, client, store, namespaces, gpuResourceKeys, gpuTypeLabel)
+// StartGPUWorkloadRefresher lists GPU-requesting pods cluster-wide, skipping
+// namespaces that belong to Kubeflow notebooks (kubeflowNSPrefix) since those
+// are already tracked via the Notebook CRD informer.
+func StartGPUWorkloadRefresher(ctx context.Context, client kubernetes.Interface, store *mlcache.Store, kubeflowNSPrefix string, gpuResourceKeys []string, gpuTypeLabel string) {
+	refreshGPUWorkloads(ctx, client, store, kubeflowNSPrefix, gpuResourceKeys, gpuTypeLabel)
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
@@ -28,34 +27,37 @@ func StartGPUWorkloadRefresher(ctx context.Context, client kubernetes.Interface,
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				refreshGPUWorkloads(ctx, client, store, namespaces, gpuResourceKeys, gpuTypeLabel)
+				refreshGPUWorkloads(ctx, client, store, kubeflowNSPrefix, gpuResourceKeys, gpuTypeLabel)
 			}
 		}
 	}()
 }
 
-func refreshGPUWorkloads(ctx context.Context, client kubernetes.Interface, store *mlcache.Store, namespaces []string, gpuResourceKeys []string, gpuTypeLabel string) {
-	for _, ns := range namespaces {
-		pods, err := client.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{})
-		if err != nil {
-			log.Printf("gpuworkloads: pod list error in %s: %v", ns, err)
+func refreshGPUWorkloads(ctx context.Context, client kubernetes.Interface, store *mlcache.Store, kubeflowNSPrefix string, gpuResourceKeys []string, gpuTypeLabel string) {
+	pods, err := client.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		log.Printf("gpuworkloads: pod list error: %v", err)
+		return
+	}
+
+	seen := map[string]bool{}
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if strings.HasPrefix(pod.Namespace, kubeflowNSPrefix) {
+			continue // already tracked via the Notebook CRD informer
+		}
+		w, ok := buildGPUWorkload(pod, gpuResourceKeys, gpuTypeLabel)
+		if !ok {
 			continue
 		}
-		seen := map[string]bool{}
-		for i := range pods.Items {
-			pod := &pods.Items[i]
-			w, ok := buildGPUWorkload(pod, gpuResourceKeys, gpuTypeLabel)
-			if !ok {
-				continue
-			}
-			store.SetWorkload(w)
-			seen[ns+"/"+pod.Name] = true
-		}
-		// remove disappeared workloads in this namespace
-		for _, w := range store.GetWorkloads() {
-			if w.Namespace == ns && !seen[ns+"/"+w.Name] {
-				store.DeleteWorkload(ns, w.Name)
-			}
+		store.SetWorkload(w)
+		seen[pod.Namespace+"/"+pod.Name] = true
+	}
+
+	// remove disappeared workloads
+	for _, w := range store.GetWorkloads() {
+		if !seen[w.Namespace+"/"+w.Name] {
+			store.DeleteWorkload(w.Namespace, w.Name)
 		}
 	}
 }

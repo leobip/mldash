@@ -54,8 +54,12 @@ func buildNotebookInfo(u *unstructured.Unstructured, gpuResourceKeys []string, g
 
 	readyReplicas, _, _ := unstructured.NestedInt64(u.Object, "status", "readyReplicas")
 	status := "Stopped"
+	statusReason := ""
 	if readyReplicas > 0 {
 		status = "Running"
+	} else if _, message, blocked := findBlockingCondition(u); blocked {
+		status = "Pending"
+		statusReason = message
 	}
 
 	var gpuCount int64
@@ -77,15 +81,36 @@ func buildNotebookInfo(u *unstructured.Unstructured, gpuResourceKeys []string, g
 	}
 
 	return models.NotebookInfo{
-		Name:       u.GetName(),
-		Namespace:  u.GetNamespace(),
-		User:       user,
-		GPUCount:   gpuCount,
-		GPUType:    extractAccelerator(u, gpuTypeLabel),
-		CPURequest: cpuReq,
-		MemRequest: memReq,
-		Status:     status,
+		Name:         u.GetName(),
+		Namespace:    u.GetNamespace(),
+		User:         user,
+		GPUCount:     gpuCount,
+		GPUType:      extractAccelerator(u, gpuTypeLabel),
+		CPURequest:   cpuReq,
+		MemRequest:   memReq,
+		Status:       status,
+		StatusReason: statusReason,
 	}
+}
+
+// findBlockingCondition looks for a status.conditions entry with status "False",
+// which indicates the notebook's pod is waiting/blocked (e.g. Unschedulable due
+// to lack of GPU) rather than genuinely stopped by the user. Returns the
+// condition's reason and message when found.
+func findBlockingCondition(u *unstructured.Unstructured) (reason string, message string, blocked bool) {
+	conditions, _, _ := unstructured.NestedSlice(u.Object, "status", "conditions")
+	for _, c := range conditions {
+		cond, ok := c.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if s, _ := cond["status"].(string); s == "False" {
+			reason, _ = cond["reason"].(string)
+			message, _ = cond["message"].(string)
+			return reason, message, true
+		}
+	}
+	return "", "", false
 }
 
 // extractAccelerator reads the accelerator value from the notebook's nodeAffinity.

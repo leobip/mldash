@@ -13,7 +13,7 @@ type Config struct {
 	Kubeconfig       string   // path to kubeconfig file (empty = in-cluster)
 	KubeContext      string   // kubeconfig context to use (empty = current context)
 	KubeflowNSPrefix string   // prefix for Kubeflow user namespaces
-	GPUNamespaces    []string // extra namespaces with GPU workloads (non-notebook)
+	GPUNamespaces    []string // extra namespaces to check for ResourceQuota (e.g. LLM serving)
 	GPUResourceKeys  []string // resource keys for GPU resources (e.g. "nvidia.com/gpu")
 	GPUTypeLabel     string   // label key for GPU type (e.g. "nvidia.com/gpu.product")
 }
