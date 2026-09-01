@@ -181,7 +181,11 @@
         {{range .Notebooks}}
         <tr>
           <td class="{{statusClass .Status}}">
-            {{statusIcon .Status}} {{.Status}}
+            {{if and (eq .Status "Pending") .StatusReason}}
+            <span title="{{.StatusReason}}"
+              >{{statusIcon .Status}} {{.Status}}</span
+            >
+            {{else}} {{statusIcon .Status}} {{.Status}} {{end}}
           </td>
           <td>{{.User}}</td>
           <td>{{.Name}}</td>
