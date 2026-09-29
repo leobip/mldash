@@ -44,17 +44,19 @@ An operational portal for AI/ML teams that answers day-to-day questions like:
    | Nodes                      | Periodic `List` (30s) — no `watch` permission on nodes | `watchers/nodes.go` → `client.CoreV1().Nodes().List()`                                                    |
    | Notebooks (CRD)            | Real-time informer/watch                               | `watchers/notebooks.go` → `dynamicinformer.DynamicSharedInformerFactory` over `kubeflow.org/v1/notebooks` |
    | Pod → Node mapping         | Periodic `List` in Kubeflow namespaces                 | `watchers/podnodes.go`                                                                                    |
-   | Non-notebook GPU workloads | Periodic `List`, namespace-scoped                      | `watchers/gpuworkloads.go`                                                                                |
+   | Non-notebook GPU workloads | Periodic `List`, cluster-wide (excludes Kubeflow-prefixed namespaces, already covered by the Notebook informer) | `watchers/gpuworkloads.go`                                                                                |
    | ResourceQuotas             | Periodic `List`, namespace-scoped                      | `watchers/resourcequotas.go`                                                                              |
 
 3. **Parsing unstructured CRDs:** Notebooks come back as raw JSON (`unstructured.Unstructured`), read field-by-field with `unstructured.NestedString` / `NestedInt64` / `NestedSlice`:
    - `spec.template.spec.containers[0].resources.limits["nvidia.com/gpu"]` → GPU count
    - `spec.template.spec.containers[0].resources.requests.cpu` / `.memory` → CPU/mem request
-   - `status.readyReplicas` → Running/Stopped
+   - `status.readyReplicas` / `status.conditions` → Running / Pending (blocked, e.g. `Unschedulable`) / Stopped
    - `metadata.annotations["notebooks.kubeflow.org/creator"]` → user
    - `spec.template.spec.affinity.nodeAffinity...matchExpressions` → GPU type (accelerator label)
 
 4. **Multi-vendor GPU support:** the extended-resource key(s) used for GPU capacity/usage and the label used to resolve the GPU model/type are configurable via `GPU_RESOURCE_KEYS` (default `nvidia.com/gpu`) and `GPU_TYPE_LABEL` (default `accelerator`) — see `.env.example`. Defaults match single-vendor NVIDIA clusters exactly (zero behavior change); add more comma-separated keys (e.g. `nvidia.com/gpu,amd.com/gpu`) for multi-vendor clusters.
+
+5. **Table filters:** the Notebooks table supports filtering by User, Status, and GPU Type; the Workloads table by Status (default `Running`, hides stale `Failed`/`Succeeded` pods without discarding them — the JSON APIs always return unfiltered data). Plain GET query params, no JavaScript.
 
 ### Example: tracing `GPUCount` end-to-end
 
