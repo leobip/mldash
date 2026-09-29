@@ -46,7 +46,7 @@ func refreshGPUWorkloads(ctx context.Context, client kubernetes.Interface, store
 		if strings.HasPrefix(pod.Namespace, kubeflowNSPrefix) {
 			continue // already tracked via the Notebook CRD informer
 		}
-		w, ok := buildGPUWorkload(pod, gpuResourceKeys, gpuTypeLabel)
+		w, ok := buildGPUWorkload(pod, store, gpuResourceKeys, gpuTypeLabel)
 		if !ok {
 			continue
 		}
@@ -62,7 +62,7 @@ func refreshGPUWorkloads(ctx context.Context, client kubernetes.Interface, store
 	}
 }
 
-func buildGPUWorkload(pod *corev1.Pod, gpuResourceKeys []string, gpuTypeLabel string) (models.GPUWorkload, bool) {
+func buildGPUWorkload(pod *corev1.Pod, store *mlcache.Store, gpuResourceKeys []string, gpuTypeLabel string) (models.GPUWorkload, bool) {
 	var gpuCount int64
 	var cpuReq, memReq, image string
 
@@ -84,8 +84,12 @@ func buildGPUWorkload(pod *corev1.Pod, gpuResourceKeys []string, gpuTypeLabel st
 		return models.GPUWorkload{}, false
 	}
 
-	// GPU type: from nodeSelector if Pending, from nodeName lookup later
+	// GPU type: from nodeSelector (covers Pending pods), falling back to the
+	// scheduled node's accelerator label for pods without the label in their selector.
 	gpuType := pod.Spec.NodeSelector[gpuTypeLabel]
+	if gpuType == "" && pod.Spec.NodeName != "" {
+		gpuType = store.NodeAccelerator(pod.Spec.NodeName)
+	}
 	status := string(pod.Status.Phase)
 
 	return models.GPUWorkload{

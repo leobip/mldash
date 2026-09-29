@@ -52,6 +52,16 @@ func (s *Store) GetNodes() []models.NodeInfo {
 	return result
 }
 
+// NodeAccelerator returns the accelerator type (GPU model label) for a node.
+func (s *Store) NodeAccelerator(nodeName string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if node, ok := s.nodes[nodeName]; ok {
+		return node.Accelerator
+	}
+	return ""
+}
+
 // SetNotebook updates or adds a notebook's information in the store.
 func (s *Store) SetNotebook(nb models.NotebookInfo) {
 	s.mu.Lock()
