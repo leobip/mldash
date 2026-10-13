@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -22,6 +23,8 @@ import (
 	"github.com/leobip/mldash/internal/watchers"
 	"github.com/leobip/mldash/web"
 )
+
+var version = "dev" // set at build time with -ldflags "-X main.version=1.2.3"
 
 func main() {
 	cfg := config.Load()
@@ -93,6 +96,15 @@ func main() {
 			},
 			"statusClass": func(s string) string {
 				return strings.ToLower(s)
+			},
+			"cpuCores": func(milli int64) string {
+				return fmt.Sprintf("%g", float64(milli)/1000)
+			},
+			"version": func() string {
+				return version
+			},
+			"memGB": func(b int64) string {
+				return fmt.Sprintf("%.1f GiB", float64(b)/(1<<30))
 			},
 		}).ParseFS(web.Templates, "templates/index.html"),
 	)

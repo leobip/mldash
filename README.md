@@ -19,6 +19,8 @@ mldash is an observability server — a dashboard informer. It:
 3. **Exposes a REST API** with processed data
 4. **Serves a web dashboard** with that information
 
+The dashboard also has a **Nodes** section: per node, GPU type and total / taken / free GPU, CPU and memory. "Taken" is the sum of container requests of all scheduled pods on the node (the scheduler's view, system pods included, not actual usage), so "free" reflects what a new notebook can really be scheduled on. The Notebooks table shows the node each running notebook is on, and the footer shows the running version.
+
 The closest pattern is `kube-state-metrics` — a server that reads cluster state and exposes it. The difference is that mldash is focused on MLOps/GPU context: who has what GPU, what notebooks are running, what capacity is free.
 
 ### Core idea
@@ -143,7 +145,7 @@ curl http://localhost:8080/api/workloads
 # CPU and memory quota status by namespace
 curl http://localhost:8080/api/quotas
 
-# GPU nodes in the cluster
+# Nodes — allocatable vs requested GPU / CPU (millicores) / memory (bytes)
 curl http://localhost:8080/api/nodes
 
 # Health check

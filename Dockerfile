@@ -7,7 +7,9 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /out/mldash ./cmd/server
+ARG VERSION=dev
+
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X main.version=${VERSION}" -o /out/mldash ./cmd/server
 
 # --- runtime stage ---
 FROM gcr.io/distroless/static-debian12:nonroot

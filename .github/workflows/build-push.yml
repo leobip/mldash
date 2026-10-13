@@ -6,7 +6,7 @@ on:
       - main
       - dev
     tags:
-      - '*.*.*'
+      - "*.*.*"
 
 permissions:
   contents: read
@@ -30,6 +30,8 @@ jobs:
 
       - uses: docker/build-push-action@v6
         with:
+          build-args: |
+            VERSION=${{ github.ref_name }}
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64

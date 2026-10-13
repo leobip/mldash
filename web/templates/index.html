@@ -164,6 +164,54 @@
       {{end}}
     </div>
 
+    {{if .Nodes}}
+    <h2>Nodes</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Node</th>
+          <th>Ready</th>
+          <th>GPU Type</th>
+          <th>GPU Total</th>
+          <th>GPU Taken</th>
+          <th>GPU Free</th>
+          <th>CPU Total</th>
+          <th>CPU Taken</th>
+          <th>CPU Free</th>
+          <th>Mem Total</th>
+          <th>Mem Taken</th>
+          <th>Mem Free</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Nodes}}
+        <tr>
+          <td>{{.Name}}</td>
+          <td>{{if .Ready}}🟢{{else}}🔴{{end}}</td>
+          <td>
+            {{if .Accelerator}}{{.Accelerator}}{{else}}<span class="none">-</span
+            >{{end}}
+          </td>
+          <td>{{.GPUTotal}}</td>
+          <td>{{.GPUUsed}}</td>
+          <td>{{.GPUAvailable}}</td>
+          <td>{{cpuCores .CPUTotalMilli}}</td>
+          <td>{{cpuCores .CPUUsedMilli}}</td>
+          <td>{{cpuCores .CPUAvailableMilli}}</td>
+          <td>{{memGB .MemTotalBytes}}</td>
+          <td>{{memGB .MemUsedBytes}}</td>
+          <td>{{memGB .MemAvailableBytes}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    <div class="legend legend-strong">
+      Taken = resources requested by all scheduled pods on the node (scheduler
+      view, including system pods), not actual usage. Free = allocatable minus
+      taken. Init containers are not counted.
+    </div>
+    {{end}}
+
     <h2>Notebooks</h2>
     <form method="get" class="filter-form">
       <label for="nb_status">Status:</label>
@@ -235,6 +283,7 @@
           <th>Notebook</th>
           <th>GPU</th>
           <th>GPU Type</th>
+          <th>Node</th>
           <th>CPU</th>
           <th>Memory</th>
         </tr>
@@ -267,12 +316,15 @@
             <span class="none">-</span>
             {{end}}
           </td>
+          <td>
+            {{if .Node}}{{.Node}}{{else}}<span class="none">-</span>{{end}}
+          </td>
           <td>{{.CPURequest}}</td>
           <td>{{.MemRequest}}</td>
         </tr>
         {{else}}
         <tr>
-          <td colspan="7" class="none">
+          <td colspan="8" class="none">
             No notebooks match this filter.
           </td>
         </tr>
@@ -432,6 +484,6 @@
     </div>
     {{end}}
 
-    <div class="footer">Updated: {{.UpdatedAt}} · auto-refresh 30s</div>
+    <div class="footer">mldash {{version}} · Updated: {{.UpdatedAt}} · auto-refresh 30s</div>
   </body>
 </html>

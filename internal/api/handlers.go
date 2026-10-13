@@ -31,6 +31,7 @@ func NewHandler(store *mlcache.Store, tmpl *template.Template, kubeflowNSPrefix 
 // PageData holds all data for the dashboard page, including GPUs, nodes, notebooks, and workloads.
 type PageData struct {
 	GPUs             []models.GPUInfo
+	Nodes            []models.NodeInfo
 	Notebooks        []models.NotebookInfo
 	NotebookUsers    []string
 	NotebookGPUTypes []string
@@ -59,6 +60,9 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	for i := range notebooks {
 		if notebooks[i].GPUType == "" && notebooks[i].GPUCount > 0 {
 			notebooks[i].GPUType = h.store.ResolveGPUType(notebooks[i].Namespace, notebooks[i].Name)
+		}
+		if notebooks[i].Status == "Running" {
+			notebooks[i].Node = h.store.GetPodNode(notebooks[i].Namespace, notebooks[i].Name+"-0")
 		}
 	}
 
@@ -126,8 +130,18 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	nodes := h.store.GetNodes()
+	// GPU nodes first, then by name
+	sort.Slice(nodes, func(i, j int) bool {
+		if nodes[i].GPUTotal != nodes[j].GPUTotal {
+			return nodes[i].GPUTotal > nodes[j].GPUTotal
+		}
+		return nodes[i].Name < nodes[j].Name
+	})
+
 	data := PageData{
 		GPUs:             h.computeGPUs(),
+		Nodes:            nodes,
 		Notebooks:        filteredNotebooks,
 		NotebookUsers:    sortedKeys(userSet),
 		NotebookGPUTypes: sortedKeys(gpuTypeSet),

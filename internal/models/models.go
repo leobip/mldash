@@ -10,12 +10,25 @@ type GPUInfo struct {
 	Available       int64  `json:"available"`
 }
 
-// NodeInfo represents a node with its GPU capacity.
+// NodeInfo represents a node with its allocatable capacity and the resources
+// requested by pods scheduled on it (scheduler view). CPU is in millicores,
+// memory in bytes. Formatting is done at display time.
 type NodeInfo struct {
 	Name        string `json:"name"`
 	Accelerator string `json:"accelerator"` // e.g. nvidia-h100, nvidia-l4
-	GPUTotal    int64  `json:"gpu_total"`
 	Ready       bool   `json:"ready"`
+
+	GPUTotal     int64 `json:"gpu_total"`
+	GPUUsed      int64 `json:"gpu_used"`
+	GPUAvailable int64 `json:"gpu_available"`
+
+	CPUTotalMilli     int64 `json:"cpu_total_milli"`
+	CPUUsedMilli      int64 `json:"cpu_used_milli"`
+	CPUAvailableMilli int64 `json:"cpu_available_milli"`
+
+	MemTotalBytes     int64 `json:"mem_total_bytes"`
+	MemUsedBytes      int64 `json:"mem_used_bytes"`
+	MemAvailableBytes int64 `json:"mem_available_bytes"`
 }
 
 // NotebookInfo represents a Kubeflow Notebook and its resource requests.
@@ -29,6 +42,7 @@ type NotebookInfo struct {
 	MemRequest   string `json:"mem_request"`
 	Status       string `json:"status"` // Running / Pending / Stopped
 	StatusReason string `json:"status_reason,omitempty"`
+	Node         string `json:"node,omitempty"` // node name where the notebook is running
 }
 
 // NamespaceQuota represents CPU/memory ResourceQuota status for a namespace.
