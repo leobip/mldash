@@ -30,20 +30,21 @@ func NewHandler(store *mlcache.Store, tmpl *template.Template, kubeflowNSPrefix 
 
 // PageData holds all data for the dashboard page, including GPUs, nodes, notebooks, and workloads.
 type PageData struct {
-	GPUs             []models.GPUInfo
-	Nodes            []models.NodeInfo
-	Notebooks        []models.NotebookInfo
-	NotebookUsers    []string
-	NotebookGPUTypes []string
-	NotebookStatus   string
-	NotebookUser     string
-	NotebookGPUType  string
-	Workloads        []models.GPUWorkload
-	HasWorkloads     bool
-	WorkloadStatus   string
-	Quotas           []models.NamespaceQuota
-	QuotasTotal      models.NamespaceQuota
-	UpdatedAt        string
+	GPUs                []models.GPUInfo
+	Nodes               []models.NodeInfo
+	Notebooks           []models.NotebookInfo
+	NotebookUsers       []string
+	NotebookGPUTypes    []string
+	NotebookStatus      string
+	NotebookUser        string
+	NotebookGPUType     string
+	Workloads           []models.GPUWorkload
+	HasWorkloads        bool
+	WorkloadStatus      string
+	Quotas              []models.NamespaceQuota
+	QuotasTotal         models.NamespaceQuota
+	QuotasAnyConfigured bool // false when no listed namespace has a ResourceQuota
+	UpdatedAt           string
 }
 
 // HealthCheck responds with 200
@@ -114,6 +115,16 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	})
 
 	quotas, quotasTotal := h.computeNamespaceQuotas()
+	// The Total/Available columns only mean something where a ResourceQuota
+	// exists. When none of the listed namespaces has one, the table shows usage
+	// only instead of a block of NA cells.
+	quotasAnyConfigured := false
+	for _, q := range quotas {
+		if q.Configured {
+			quotasAnyConfigured = true
+			break
+		}
+	}
 
 	status := r.URL.Query().Get("status")
 	if status == "" {
@@ -140,20 +151,21 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	})
 
 	data := PageData{
-		GPUs:             h.computeGPUs(),
-		Nodes:            nodes,
-		Notebooks:        filteredNotebooks,
-		NotebookUsers:    sortedKeys(userSet),
-		NotebookGPUTypes: sortedKeys(gpuTypeSet),
-		NotebookStatus:   nbStatus,
-		NotebookUser:     nbUser,
-		NotebookGPUType:  nbGPUType,
-		Workloads:        workloads,
-		HasWorkloads:     len(allWorkloads) > 0,
-		WorkloadStatus:   status,
-		Quotas:           quotas,
-		QuotasTotal:      quotasTotal,
-		UpdatedAt:        time.Now().Format(time.RFC1123),
+		GPUs:                h.computeGPUs(),
+		Nodes:               nodes,
+		Notebooks:           filteredNotebooks,
+		NotebookUsers:       sortedKeys(userSet),
+		NotebookGPUTypes:    sortedKeys(gpuTypeSet),
+		NotebookStatus:      nbStatus,
+		NotebookUser:        nbUser,
+		NotebookGPUType:     nbGPUType,
+		Workloads:           workloads,
+		HasWorkloads:        len(allWorkloads) > 0,
+		WorkloadStatus:      status,
+		Quotas:              quotas,
+		QuotasTotal:         quotasTotal,
+		QuotasAnyConfigured: quotasAnyConfigured,
+		UpdatedAt:           time.Now().Format(time.RFC1123),
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := h.tmpl.Execute(w, data); err != nil {

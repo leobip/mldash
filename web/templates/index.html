@@ -10,33 +10,45 @@
         margin: 0;
         padding: 0;
       }
+      :root {
+        --canvas: #0f1117;
+        --surface: #1a1f2e;
+        --line: #2a3040;
+        --line-soft: rgba(255, 255, 255, 0.06);
+        --ink: #e6e9f0;
+        --ink-2: #a8b2c7;
+        --ink-3: #8892a6;
+        --accent: #7cb8ff;
+        --free: #6bcb77;
+        --depleted: #ff6b6b;
+        --waiting: #ffd93d;
+      }
       body {
         font-family: system-ui, sans-serif;
-        background: #0f1117;
-        color: #e0e0e0;
+        background: var(--canvas);
+        color: var(--ink);
         padding: 24px;
+        max-width: 1500px;
+        margin: 0 auto;
+        -webkit-font-smoothing: antialiased;
       }
       h1 {
-        color: #7cb8ff;
+        color: var(--accent);
         font-size: 22px;
         margin-bottom: 20px;
       }
       h2 {
         font-size: 11px;
-        color: #888;
+        color: var(--ink-2);
         text-transform: uppercase;
         letter-spacing: 1px;
-        border-bottom: 1px solid #2a3040;
+        border-bottom: 1px solid var(--line);
         padding-bottom: 6px;
         margin: 24px 0 12px;
       }
-      .legend-strong {
-        font-size: 16px;
-        font-weight: bold;
-      }
       .total-row td {
-        background: #1a1f2e;
-        border-top: 2px solid #2a3040;
+        background: var(--surface);
+        border-top: 2px solid var(--line);
       }
 
       .cards {
@@ -46,15 +58,15 @@
         margin-bottom: 8px;
       }
       .card {
-        background: #1a1f2e;
-        border: 1px solid #2a3040;
+        background: var(--surface);
+        border: 1px solid var(--line);
         border-radius: 8px;
         padding: 16px 20px;
       }
       .card-type {
         font-size: 13px;
         font-weight: bold;
-        color: #7cb8ff;
+        color: var(--accent);
         margin-bottom: 12px;
       }
       .card-stats {
@@ -63,74 +75,88 @@
       }
       .card-breakdown {
         font-size: 12px;
-        color: #888;
+        color: var(--ink-3);
         margin-top: 8px;
       }
       .stat .val {
         font-size: 28px;
         font-weight: bold;
+        font-variant-numeric: tabular-nums;
       }
       .stat .lbl {
         font-size: 11px;
-        color: #888;
+        color: var(--ink-3);
         margin-top: 2px;
       }
       .val-total {
-        color: #e0e0e0;
+        color: var(--ink);
       }
       .val-used {
-        color: #ff6b6b;
+        color: var(--ink-2);
       }
       .val-free {
-        color: #6bcb77;
+        color: var(--free);
+      }
+      .val-depleted {
+        color: var(--depleted);
       }
 
       table {
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
+        font-variant-numeric: tabular-nums;
       }
       th {
         text-align: left;
         padding: 7px 12px;
         font-size: 11px;
-        color: #666;
+        color: var(--ink-3);
         text-transform: uppercase;
-        border-bottom: 1px solid #2a3040;
+        border-bottom: 1px solid var(--line);
       }
       td {
         padding: 7px 12px;
-        border-bottom: 1px solid #1a1f2e;
+        border-bottom: 1px solid var(--line-soft);
       }
       tr:hover td {
-        background: #1a1f2e;
+        background: var(--surface);
       }
 
       .running {
-        color: #6bcb77;
+        color: var(--free);
       }
       .stopped {
-        color: #555;
+        color: var(--ink-2);
       }
       .pending {
-        color: #ffd93d;
+        color: var(--waiting);
       }
       .warning {
-        color: #ffd93d;
+        color: var(--waiting);
       }
       .none {
-        color: #555;
+        color: var(--ink-3);
+      }
+      .muted {
+        color: var(--ink-3);
       }
 
       .legend {
-        color: #666;
+        color: var(--ink-3);
         margin-top: 10px;
         margin-bottom: 4px;
       }
       .footer {
-        font-size: 11px;
-        color: #444;
+        font-size: 12px;
+        color: var(--ink-3);
         margin-top: 24px;
+        font-variant-numeric: tabular-nums;
+      }
+      .fver {
+        color: var(--ink);
+        font-weight: 600;
+        letter-spacing: 0.02em;
       }
     </style>
   </head>
@@ -152,7 +178,11 @@
             <div class="lbl">used</div>
           </div>
           <div class="stat">
-            <div class="val val-free">{{.Available}}</div>
+            <div
+              class="val {{if eq .Available 0}}val-depleted{{else}}val-free{{end}}"
+            >
+              {{.Available}}
+            </div>
             <div class="lbl">free for notebooks</div>
           </div>
         </div>
@@ -205,7 +235,7 @@
         {{end}}
       </tbody>
     </table>
-    <div class="legend legend-strong">
+    <div class="legend">
       Taken = resources requested by all scheduled pods on the node (scheduler
       view, including system pods), not actual usage. Free = allocatable minus
       taken. Init containers are not counted.
@@ -281,11 +311,11 @@
           <th>Status</th>
           <th>User</th>
           <th>Notebook</th>
-          <th>GPU</th>
+          <th>GPU (req)</th>
           <th>GPU Type</th>
           <th>Node</th>
-          <th>CPU</th>
-          <th>Memory</th>
+          <th>CPU (req)</th>
+          <th>Mem (req)</th>
         </tr>
       </thead>
       <tbody>
@@ -332,60 +362,12 @@
       </tbody>
     </table>
 
-    <div class="legend legend-strong">
+    <div class="legend">
       <span class="warning">⚠️</span> GPU type set via nodeAffinity but no GPU
       requested — possible misconfiguration in notebook spawner.
     </div>
 
-    {{if .Quotas}}
-    <h2>Namespace Quotas (CPU / Memory)</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Namespace</th>
-          <th>CPU Total</th>
-          <th>CPU Used</th>
-          <th>CPU Available</th>
-          <th>Mem Total</th>
-          <th>Mem Used</th>
-          <th>Mem Available</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{range .Quotas}}
-        <tr>
-          <td>{{.Namespace}}</td>
-          <td>{{.CPUTotal}}</td>
-          <td>{{.CPUUsed}}</td>
-          <td>{{.CPUAvailable}}</td>
-          <td>{{.MemTotal}}</td>
-          <td>{{.MemUsed}}</td>
-          <td>{{.MemAvailable}}</td>
-        </tr>
-        {{end}}
-        <tr class="total-row">
-          <td><strong>TOTAL (Kubeflow)</strong></td>
-          <td>{{.QuotasTotal.CPUTotal}}</td>
-          <td>{{.QuotasTotal.CPUUsed}}</td>
-          <td>{{.QuotasTotal.CPUAvailable}}</td>
-          <td>{{.QuotasTotal.MemTotal}}</td>
-          <td>{{.QuotasTotal.MemUsed}}</td>
-          <td>{{.QuotasTotal.MemAvailable}}</td>
-        </tr>
-      </tbody>
-    </table>
-    <div class="legend legend-strong">
-      NA = ResourceQuota not configured for this namespace — there is no
-      per-namespace hard cap; the only real limit is total node capacity across
-      the cluster.
-      <br />
-      Stopped Notebooks are not counted as "used" CPU/memory.
-      <br />
-      TOTAL (Kubeflow) aggregates only namespaces matching KUBEFLOW_NS_PREFIX
-      (excludes GPU_NAMESPACES workloads like rme-llm); it shows NA if any
-      included namespace has no ResourceQuota configured.
-    </div>
-    {{end}} {{if .HasWorkloads}}
+    {{if .HasWorkloads}}
     <h2>GPU Workloads</h2>
     <form method="get" class="filter-form">
       <label for="status">Status:</label>
@@ -442,10 +424,11 @@
           <th>Name</th>
           <th>Namespace</th>
           <th>Image</th>
-          <th>GPU</th>
+          <th>GPU (req)</th>
           <th>GPU Type</th>
-          <th>CPU</th>
-          <th>Memory</th>
+          <th>Node</th>
+          <th>CPU (req)</th>
+          <th>Mem (req)</th>
         </tr>
       </thead>
       <tbody>
@@ -454,12 +437,24 @@
           <td class="{{statusClass .Status}}">
             {{statusIcon .Status}} {{.Status}}
           </td>
-          <td>{{.Name}}</td>
+          <td title="{{.Name}}">
+            {{podBase .Name}}{{if podSuffix .Name}}<span class="muted"
+              >· {{podSuffix .Name}}</span
+            >{{end}}
+          </td>
           <td>{{.Namespace}}</td>
-          <td>{{.Image}}</td>
+          <td title="{{.Image}}">
+            {{imageRepo .Image}}{{if imageTag .Image}}<span class="muted"
+              >:{{imageTag .Image}}</span
+            >{{end}}
+          </td>
           <td>{{.GPUCount}}</td>
           <td>
             {{if .GPUType}}{{.GPUType}}{{else}}<span class="none">-</span
+            >{{end}}
+          </td>
+          <td>
+            {{if .NodeName}}{{.NodeName}}{{else}}<span class="none">-</span
             >{{end}}
           </td>
           <td>{{.CPURequest}}</td>
@@ -467,14 +462,14 @@
         </tr>
         {{else}}
         <tr>
-          <td colspan="8" class="none">
+          <td colspan="9" class="none">
             No workloads match this filter ({{.WorkloadStatus}}).
           </td>
         </tr>
         {{end}}
       </tbody>
     </table>
-    <div class="legend legend-strong">
+    <div class="legend">
       Pods requesting GPU outside of Kubeflow Notebooks (e.g. LLM inference
       serving). Discovered by listing pods cluster-wide and skipping any
       namespace matching KUBEFLOW_NS_PREFIX — independent of the Notebook CRD.
@@ -484,6 +479,67 @@
     </div>
     {{end}}
 
-    <div class="footer">mldash {{version}} · Updated: {{.UpdatedAt}} · auto-refresh 30s</div>
+    {{if .Quotas}}
+    <h2>
+      {{if .QuotasAnyConfigured}}Namespace Quotas (CPU / Memory){{else}}Namespace
+      Usage (CPU / Memory){{end}}
+    </h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Namespace</th>
+          {{if .QuotasAnyConfigured}}<th>CPU Total</th>{{end}}
+          <th>CPU Used</th>
+          {{if .QuotasAnyConfigured}}<th>CPU Available</th>{{end}}
+          {{if .QuotasAnyConfigured}}<th>Mem Total</th>{{end}}
+          <th>Mem Used</th>
+          {{if .QuotasAnyConfigured}}<th>Mem Available</th>{{end}}
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Quotas}}
+        <tr>
+          <td>{{.Namespace}}</td>
+          {{if $.QuotasAnyConfigured}}<td>{{.CPUTotal}}</td>{{end}}
+          <td>{{.CPUUsed}}</td>
+          {{if $.QuotasAnyConfigured}}<td>{{.CPUAvailable}}</td>{{end}}
+          {{if $.QuotasAnyConfigured}}<td>{{.MemTotal}}</td>{{end}}
+          <td>{{.MemUsed}}</td>
+          {{if $.QuotasAnyConfigured}}<td>{{.MemAvailable}}</td>{{end}}
+        </tr>
+        {{end}}
+        <tr class="total-row">
+          <td><strong>TOTAL (Kubeflow)</strong></td>
+          {{if .QuotasAnyConfigured}}<td>{{.QuotasTotal.CPUTotal}}</td>{{end}}
+          <td>{{.QuotasTotal.CPUUsed}}</td>
+          {{if .QuotasAnyConfigured}}<td>{{.QuotasTotal.CPUAvailable}}</td>{{end}}
+          {{if .QuotasAnyConfigured}}<td>{{.QuotasTotal.MemTotal}}</td>{{end}}
+          <td>{{.QuotasTotal.MemUsed}}</td>
+          {{if .QuotasAnyConfigured}}<td>{{.QuotasTotal.MemAvailable}}</td>{{end}}
+        </tr>
+      </tbody>
+    </table>
+    <div class="legend">
+      {{if .QuotasAnyConfigured}}NA = ResourceQuota not configured for this
+      namespace — there is no per-namespace hard cap; the only real limit is
+      total node capacity across the cluster.
+      <br />
+      {{else}}No ResourceQuota is configured for any namespace shown, so CPU and
+      memory are what each namespace's notebooks request — not a share of a cap.
+      The only real limit is total cluster capacity (see Nodes). Total and
+      Available columns appear once a ResourceQuota exists.
+      <br />
+      {{end}} Stopped Notebooks are not counted as "used" CPU/memory.
+      <br />
+      TOTAL (Kubeflow) aggregates only namespaces matching KUBEFLOW_NS_PREFIX
+      (excludes GPU_NAMESPACES workloads like rme-llm){{if .QuotasAnyConfigured}};
+      it shows NA if any included namespace has no ResourceQuota configured{{end}}.
+    </div>
+    {{end}}
+
+    <div class="footer">
+      <span class="fver">mldash {{version}}</span> · Updated: {{.UpdatedAt}} ·
+      auto-refresh 30s
+    </div>
   </body>
 </html>

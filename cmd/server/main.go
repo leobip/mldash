@@ -106,6 +106,10 @@ func main() {
 			"memGB": func(b int64) string {
 				return fmt.Sprintf("%.1f GiB", float64(b)/(1<<30))
 			},
+			"imageRepo": api.ImageRepo,
+			"imageTag":  api.ImageTag,
+			"podBase":   api.PodBase,
+			"podSuffix": api.PodSuffix,
 		}).ParseFS(web.Templates, "templates/index.html"),
 	)
 	handler := api.NewHandler(store, tmpl, cfg.KubeflowNSPrefix)

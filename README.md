@@ -19,7 +19,9 @@ mldash is an observability server — a dashboard informer. It:
 3. **Exposes a REST API** with processed data
 4. **Serves a web dashboard** with that information
 
-The dashboard also has a **Nodes** section: per node, GPU type and total / taken / free GPU, CPU and memory. "Taken" is the sum of container requests of all scheduled pods on the node (the scheduler's view, system pods included, not actual usage), so "free" reflects what a new notebook can really be scheduled on. The Notebooks table shows the node each running notebook is on, and the footer shows the running version.
+The dashboard also has a **Nodes** section: per node, GPU type and total / taken / free GPU, CPU and memory. "Taken" is the sum of container requests of all scheduled pods on the node (the scheduler's view, system pods included, not actual usage), so "free" reflects what a new notebook can really be scheduled on. The Notebooks and Workloads tables show the node each pod is on, and the footer shows the running version.
+
+Everything on screen is **reserved capacity, not measured usage** — resource columns are labelled `GPU (req)` / `CPU (req)` / `Mem (req)` accordingly. Pod and image cells drop infrastructure noise (the ReplicaSet hash and the internal registry host) and keep the full string in the row's `title` attribute so it can still be copied into `kubectl`. The namespace section only renders Total / Available columns when at least one namespace actually has a `ResourceQuota`; otherwise it becomes **Namespace Usage** with the CPU/memory its notebooks request, instead of a table of `NA` cells.
 
 The closest pattern is `kube-state-metrics` — a server that reads cluster state and exposes it. The difference is that mldash is focused on MLOps/GPU context: who has what GPU, what notebooks are running, what capacity is free.
 
@@ -173,7 +175,7 @@ curl -s http://localhost:8080/api/workloads \
 ## Stack
 
 - **Backend:** Go + client-go + dynamic client + chi router
-- **Frontend:** Go templates + inline CSS, 30s auto-refresh, no JS, no npm, no build step
+- **Frontend:** Go templates + inline CSS custom properties, 30s auto-refresh, no JS, no npm, no build step. Design tokens and interface conventions are recorded in [`.interface-design/system.md`](.interface-design/system.md) — text hierarchy never relies on grays below AA contrast, numbers are tabular, and red means *depleted* (`available == 0`), never *in use*.
 - **Deploy:** single binary, `go:embed` assets, container image and generic read-only RBAC example
 - **Data sources:** Kubeflow CRD informer, periodic node/pod List
 
@@ -202,6 +204,7 @@ open http://localhost:8080
 ## Roadmap
 
 - HTMX partial updates (replace full-page meta refresh)
+- Explicit empty states for sections that currently hide themselves when they have no rows
 - Generic Deployment and Service examples
 - Versioned container releases pinned by digest
 
