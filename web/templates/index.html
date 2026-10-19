@@ -481,18 +481,18 @@
 
     {{if .Quotas}}
     <h2>
-      {{if .QuotasAnyConfigured}}Namespace Quotas (CPU / Memory){{else}}Namespace
-      Usage (CPU / Memory){{end}}
+      {{if .QuotasAnyConfigured}}Namespace Quotas (CPU / RAM){{else}}Namespace
+      Usage (CPU / RAM){{end}}
     </h2>
     <table>
       <thead>
         <tr>
           <th>Namespace</th>
           {{if .QuotasAnyConfigured}}<th>CPU Total</th>{{end}}
-          <th>CPU Used</th>
+          <th>CPU Used (running)</th>
           {{if .QuotasAnyConfigured}}<th>CPU Available</th>{{end}}
           {{if .QuotasAnyConfigured}}<th>Mem Total</th>{{end}}
-          <th>Mem Used</th>
+          <th>Mem Used (RAM, running)</th>
           {{if .QuotasAnyConfigured}}<th>Mem Available</th>{{end}}
         </tr>
       </thead>
@@ -520,20 +520,24 @@
       </tbody>
     </table>
     <div class="legend">
+      "Used" = CPU / RAM requests of the Notebooks in this namespace that are
+      Running right now. Stopped Notebooks request nothing, so they count as
+      zero — their workspace volumes stay allocated, but that storage is not
+      shown here. This is RAM, not disk.
+      <br />
       {{if .QuotasAnyConfigured}}NA = ResourceQuota not configured for this
       namespace — there is no per-namespace hard cap; the only real limit is
       total node capacity across the cluster.
       <br />
-      {{else}}No ResourceQuota is configured for any namespace shown, so CPU and
-      memory are what each namespace's notebooks request — not a share of a cap.
-      The only real limit is total cluster capacity (see Nodes). Total and
-      Available columns appear once a ResourceQuota exists.
+      {{else}}No ResourceQuota is configured for any namespace shown, so these
+      figures are not a share of a cap. The only real limit is total cluster
+      capacity (see Nodes). Total and Available columns appear once a
+      ResourceQuota exists.
       <br />
-      {{end}} Stopped Notebooks are not counted as "used" CPU/memory.
-      <br />
-      TOTAL (Kubeflow) aggregates only namespaces matching KUBEFLOW_NS_PREFIX
-      (excludes GPU_NAMESPACES workloads like rme-llm){{if .QuotasAnyConfigured}};
-      it shows NA if any included namespace has no ResourceQuota configured{{end}}.
+      {{end}} TOTAL (Kubeflow) aggregates only namespaces matching
+      KUBEFLOW_NS_PREFIX (excludes GPU_NAMESPACES workloads like
+      rme-llm){{if .QuotasAnyConfigured}}; it shows NA if any included namespace
+      has no ResourceQuota configured{{end}}.
     </div>
     {{end}}
 

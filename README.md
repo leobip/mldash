@@ -21,7 +21,7 @@ mldash is an observability server — a dashboard informer. It:
 
 The dashboard also has a **Nodes** section: per node, GPU type and total / taken / free GPU, CPU and memory. "Taken" is the sum of container requests of all scheduled pods on the node (the scheduler's view, system pods included, not actual usage), so "free" reflects what a new notebook can really be scheduled on. The Notebooks and Workloads tables show the node each pod is on, and the footer shows the running version.
 
-Everything on screen is **reserved capacity, not measured usage** — resource columns are labelled `GPU (req)` / `CPU (req)` / `Mem (req)` accordingly. Pod and image cells drop infrastructure noise (the ReplicaSet hash and the internal registry host) and keep the full string in the row's `title` attribute so it can still be copied into `kubectl`. The namespace section only renders Total / Available columns when at least one namespace actually has a `ResourceQuota`; otherwise it becomes **Namespace Usage** with the CPU/memory its notebooks request, instead of a table of `NA` cells.
+Everything on screen is **reserved capacity, not measured usage** — resource columns are labelled `GPU (req)` / `CPU (req)` / `Mem (req)` accordingly. Pod and image cells drop infrastructure noise (the ReplicaSet hash and the internal registry host) and keep the full string in the row's `title` attribute so it can still be copied into `kubectl`. The namespace section only renders Total / Available columns when at least one namespace actually has a `ResourceQuota`; otherwise it becomes **Namespace Usage** with the CPU/memory its notebooks request, instead of a table of `NA` cells. Its columns are labelled `CPU Used (running)` and `Mem Used (RAM, running)`: requests of the notebooks that are Running at that moment, and the memory figure is RAM. Workspace volumes are a different kind of footprint — same `Gi` unit, much larger numbers, and mldash does not read them yet.
 
 The closest pattern is `kube-state-metrics` — a server that reads cluster state and exposes it. The difference is that mldash is focused on MLOps/GPU context: who has what GPU, what notebooks are running, what capacity is free.
 
@@ -204,6 +204,10 @@ open http://localhost:8080
 ## Roadmap
 
 - HTMX partial updates (replace full-page meta refresh)
+- Per-namespace workspace storage: total of bound PVCs per namespace, so the
+  storage a team holds while its notebooks are stopped becomes visible. Requires
+  adding `persistentvolumeclaims` (`get`, `list`) to the read-only ClusterRole —
+  volume size exists only on the PVC object, and a stopped notebook has no pod.
 - Explicit empty states for sections that currently hide themselves when they have no rows
 - Generic Deployment and Service examples
 - Versioned container releases pinned by digest

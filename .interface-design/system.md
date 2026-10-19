@@ -73,6 +73,13 @@ Base unit 4px. Table cells `7px 12px`, cards `16px 20px`, card gap 16px,
   namespace actually has a ResourceQuota (`QuotasAnyConfigured`); otherwise the
   section is "Namespace Usage" with used-only columns and an explanatory line.
   44 `NA` cells used to fill 57% of that table.
+- **Name the unit inside the column, not only in the section.** A bare
+  `Mem Used` shown in `Gi` was read as *storage* by a user whose notebooks
+  request 161 Gi of RAM while holding 1155 Gi of workspace volumes. Memory
+  columns say `RAM`; compute columns say `(running)` when only live notebooks
+  are counted (`CPU Used (running)`, `Mem Used (RAM, running)`). The legend
+  states the definition of "Used" as its **first** line — caveats go first,
+  not last.
 - Section order = operator value: GPU Inventory → Nodes → Notebooks → Workloads
   → Namespace Usage.
 
